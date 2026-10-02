@@ -1,0 +1,7 @@
+git init
+git remote add origin https://github.com/nicolassouza190305-lab/Agenda-oficina.git
+git add .
+git commit -m "Estrutura inicial do app com 3 telas"
+git branch -M main
+git pull origin main --allow-unrelated-histories
+git push -u origin main
