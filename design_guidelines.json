@@ -1,0 +1,133 @@
+{
+  "app_name": "Agenda de Serviços da Oficina",
+  "personality": "7 Dark-First Utility",
+  "personality_one_liner": "A high-contrast, masculine command center for workshop operations, driven by stark readability and industrial orange accents.",
+  "color": {
+    "surface": "#111113",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#1E1E22",
+    "onSurfaceSecondary": "#E0E0E0",
+    "surfaceTertiary": "#2C2C32",
+    "onSurfaceTertiary": "#B0B0B0",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#111113",
+    "brand": "#E65100",
+    "onBrand": "#FFFFFF",
+    "brandPrimary": "#E65100",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#FF3D00",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#3E1E08",
+    "onBrandTertiary": "#FFB992",
+    "success": "#00E676",
+    "onSuccess": "#003314",
+    "warning": "#FFB300",
+    "onWarning": "#332200",
+    "error": "#FF1744",
+    "onError": "#4D000E",
+    "border": "#2C2C32",
+    "borderStrong": "#4A4A52",
+    "divider": "#1E1E22",
+    "muted": "#8A8A93"
+  },
+  "typography": {
+    "displayFontFamily": "Oswald",
+    "textFontFamily": "Manrope",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use compact spacing for high information density, typical of command centers.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "stack_then_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [],
+    "dont's": [
+      "No glassmorphism. This is a brutal, high-utility dark theme. Use solid surfaceSecondary for elevation and dividers for structure."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Login",
+      "purpose": "Onboard users with a toggle to choose between Client or Workshop view.",
+      "states": {
+        "loading": "Dark spinner over the login button.",
+        "empty": "N/A",
+        "error": "Inline red text below the affected input."
+      },
+      "layout": "Hero image at the top taking 40% height with a top-to-bottom dark gradient scrim (stop at 80% opacity) ensuring seamless merge into the surface color. Display title in Oswald over the scrim. Below, a Segmented Control (toggle) for Client/Workshop, followed by single-column inputs. Sticky CTA at the bottom."
+    },
+    {
+      "name": "Meus Veículos",
+      "purpose": "Display a list of registered cars and allow adding a new one via modal.",
+      "states": {
+        "loading": "Skeleton list of cards.",
+        "empty": "Illustration/Icon of an empty garage with 'Nenhum veículo cadastrado' and a primary 'Adicionar Veículo' button.",
+        "error": "Error message with retry button."
+      },
+      "layout": "Vertical FlatList. Each card (surfaceSecondary) has a vehicle placeholder image/silhouette, model name (Oswald), plate, year, and KM (tabular font, muted). Floating Action Button (FAB) at the bottom right anchored above the safe area, tinted in brandPrimary, to trigger a Bottom Sheet for adding a new vehicle."
+    },
+    {
+      "name": "Agenda do Dia",
+      "purpose": "Workshop's daily view to manage appointments with quick actions and status.",
+      "states": {
+        "loading": "Skeleton timeline view.",
+        "empty": "Text 'Nenhum agendamento para hoje' centered.",
+        "error": "Error message with retry button."
+      },
+      "layout": "Sticky header with current date. Scrollable list with a timeline layout: time on the left (Oswald, muted), vertical separator, and a surfaceSecondary card on the right. Card includes vehicle details, a status badge (warning for 'Agendado', success for 'Confirmado', brandSecondary for 'Em Andamento'). Pending cards include side-by-side 'Confirmar' (surfaceTertiary) and 'Recusar' (border outline) buttons."
+    }
+  ],
+  "images": {
+    "login_hero": {
+      "url": "https://images.unsplash.com/photo-1762604462421-fff920b0c418?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbW9kZXJuJTIwZ2FyYWdlJTIwd29ya3Nob3AlMjBpbnRlcmlvciUyMG1vb2R5fGVufDB8fHx8MTc5MTU1NzEyMnww&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark moody garage workshop interior with tools"
+    },
+    "vehicle_placeholder": {
+      "url": "https://images.unsplash.com/photo-1704476944918-c1258561ebb9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxzbGVlayUyMHNwb3J0cyUyMGNhciUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc5MTU1NzEyMnww&ixlib=rb-4.1.0&q=85",
+      "alt": "Sleek sports car silhouette on dark background"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Dark-First Utility (Personality 7) guidelines. Do not use blue or purple anywhere; keep the interface sharp and masculine.",
+    "Implement the 'Agenda do Dia' timeline layout carefully: align times on the left using a tabular or condensed font (Oswald), keeping the UI scannable.",
+    "Use Phosphor icons with consistent weight (either all filled or all outlined depending on the active state).",
+    "For the Login screen hero image, ensure the gradient scrim is vertical (transparent -> 80% surfaceInverse/black) so the text is fully readable.",
+    "The add vehicle action should use @gorhom/bottom-sheet. Ensure the form has standard spacing and sticky bottom CTA.",
+    "Badges in Agenda must use the designated status colors from the JSON, keeping contrast readable on the dark surface.",
+    "No glassmorphism for this app. Use solid colors and dividers for elevation."
+  ]
+}
