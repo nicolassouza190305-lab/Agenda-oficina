@@ -11,7 +11,8 @@
 // Regras de permissão são aplicadas AQUI (não só escondendo botões):
 //   - só a Oficina lista agendamentos e muda o status (confirmar/cancelar)
 //   - só o Cliente cadastra/consulta veículos (e só os seus)
-//   - o Cliente só consulta quais horários estão ocupados (sem dados de ninguém)
+//   - o Cliente consulta quais horários estão ocupados (sem dados de ninguém),
+//     solicita um horário livre e vê apenas as suas próprias solicitações
 // ============================================================
 
 import * as SQLite from "expo-sqlite";
@@ -19,12 +20,16 @@ import {
   VEICULOS_MOCK,
   AGENDAMENTOS_MOCK,
   USUARIOS_SEED,
+  HORARIOS_ATENDIMENTO,
 } from "../mocks/data";
 import { gerarSalt, hashSenha } from "./seguranca";
-import { paraISO, somarDias } from "../utils/datas";
+import { paraISO, somarDias, hojeISO, horaAgora } from "../utils/datas";
 
-// Aumente este número quando mudar o esquema (recria as tabelas de exemplo)
-const VERSAO_ESQUEMA = 2;
+// VERSAO_ESQUEMA: versão atual do banco.
+// VERSAO_MINIMA: abaixo dela as tabelas de exemplo são recriadas; entre as duas
+// o banco é só ajustado (ALTER TABLE), sem perder os dados cadastrados.
+const VERSAO_ESQUEMA = 3;
+const VERSAO_MINIMA = 2;
 
 let dbPromise = null;
 
@@ -50,7 +55,7 @@ async function iniciar() {
   await db.execAsync("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
 
   const atual = (await db.getFirstAsync("PRAGMA user_version"))?.user_version ?? 0;
-  if (atual < VERSAO_ESQUEMA) {
+  if (atual < VERSAO_MINIMA) {
     // Esquema antigo (Checkpoint 3 inicial): recria com usuários e datas
     await db.execAsync(`
       DROP TABLE IF EXISTS agendamentos;
@@ -94,9 +99,24 @@ async function iniciar() {
       veiculo  TEXT NOT NULL,
       placa    TEXT NOT NULL,
       servico  TEXT NOT NULL,
-      status   TEXT NOT NULL DEFAULT 'Agendado'
+      status   TEXT NOT NULL DEFAULT 'Agendado',
+      usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
     );
+  `);
+
+  // v2 -> v3: agendamentos passam a guardar quem solicitou (cliente)
+  const colunas = await db.getAllAsync("PRAGMA table_info(agendamentos)");
+  if (!colunas.some((c) => c.name === "usuario_id")) {
+    await db.execAsync(
+      "ALTER TABLE agendamentos ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL"
+    );
+  }
+  await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_agendamentos_data ON agendamentos (data, horario);
+    CREATE INDEX IF NOT EXISTS idx_agendamentos_usuario ON agendamentos (usuario_id);
+    -- Um horário não pode ter dois agendamentos ativos (evita reserva dupla)
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_agendamento_horario
+      ON agendamentos (data, horario) WHERE status <> 'Cancelado';
   `);
 
   const { n } = await db.getFirstAsync("SELECT COUNT(*) AS n FROM usuarios");
@@ -262,4 +282,62 @@ export async function listarHorariosOcupados(dataISO) {
     [dataISO]
   );
   return linhas.map((l) => l.horario);
+}
+
+// Cliente: solicita um horário livre. Entra como "Agendado" e aguarda a oficina
+// confirmar ou recusar. O banco impede reservar um horário já ocupado.
+export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId, servico }) {
+  const db = await getDb();
+  await exigirPerfil(db, usuarioId, "Cliente");
+
+  const servicoLimpo = String(servico || "").trim();
+  if (servicoLimpo.length < 3) throw erroApp("Descreva o serviço desejado.");
+  if (servicoLimpo.length > 120) throw erroApp("Descreva o serviço em até 120 caracteres.");
+  if (!HORARIOS_ATENDIMENTO.includes(horario)) throw erroApp("Horário inválido.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data))) throw erroApp("Data inválida.");
+  const hoje = hojeISO();
+  if (data < hoje || (data === hoje && horario <= horaAgora())) {
+    throw erroApp("Esse horário já passou. Escolha outro.");
+  }
+
+  // O veículo precisa ser do próprio cliente
+  const v = await db.getFirstAsync(
+    "SELECT modelo, placa FROM veiculos WHERE id = ? AND usuario_id = ?",
+    [veiculoId, usuarioId]
+  );
+  if (!v) throw erroApp("Selecione um dos seus veículos.");
+  const u = await db.getFirstAsync("SELECT nome FROM usuarios WHERE id = ?", [usuarioId]);
+
+  const novo = {
+    id: `a${Date.now()}`,
+    data,
+    horario,
+    cliente: u.nome,
+    veiculo: v.modelo,
+    placa: v.placa,
+    servico: servicoLimpo,
+    status: "Agendado",
+  };
+  try {
+    await db.runAsync(
+      "INSERT INTO agendamentos (id, data, horario, cliente, veiculo, placa, servico, status, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [novo.id, novo.data, novo.horario, novo.cliente, novo.veiculo, novo.placa, novo.servico, novo.status, usuarioId]
+    );
+  } catch (e) {
+    if (String(e?.message || e).includes("UNIQUE")) {
+      throw erroApp("Esse horário acabou de ser ocupado. Escolha outro.");
+    }
+    throw e;
+  }
+  return novo;
+}
+
+// Cliente: só as PRÓPRIAS solicitações (de hoje em diante) e o status de cada uma
+export async function listarMeusAgendamentos(usuarioId) {
+  const db = await getDb();
+  await exigirPerfil(db, usuarioId, "Cliente");
+  return db.getAllAsync(
+    "SELECT id, data, horario, veiculo, placa, servico, status FROM agendamentos WHERE usuario_id = ? AND data >= ? ORDER BY data ASC, horario ASC",
+    [usuarioId, hojeISO()]
+  );
 }
