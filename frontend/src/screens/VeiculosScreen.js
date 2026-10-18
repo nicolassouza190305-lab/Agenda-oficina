@@ -4,7 +4,7 @@
 // FlatList + modal de cadastro de novo veículo
 // ============================================================
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -20,14 +20,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/Header";
-import { VEICULOS_MOCK } from "../mocks/data";
+import { listarVeiculos, inserirVeiculo } from "../database/db";
 import { colors, spacing, radius } from "../theme";
 
 export default function VeiculosScreen() {
   const insets = useSafeAreaInsets();
 
-  // Desenvolvido por Nicolas: estado da lista de veículos (começa com mock)
-  const [veiculos, setVeiculos] = useState(VEICULOS_MOCK);
+  // Checkpoint 3: veículos vêm do SQLite (tabela "veiculos")
+  const [veiculos, setVeiculos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
 
   const [modelo, setModelo] = useState("");
@@ -36,6 +37,18 @@ export default function VeiculosScreen() {
   const [km, setKm] = useState("");
   const [cor, setCor] = useState("");
   const [erro, setErro] = useState("");
+
+  // Consulta: carrega a lista salva ao abrir a tela
+  useEffect(() => {
+    let ativo = true;
+    listarVeiculos()
+      .then((lista) => ativo && setVeiculos(lista))
+      .catch((e) => console.warn("[db] erro ao listar veículos:", e))
+      .finally(() => ativo && setCarregando(false));
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const limparForm = () => {
     setModelo("");
@@ -46,23 +59,31 @@ export default function VeiculosScreen() {
     setErro("");
   };
 
-  // Desenvolvido por Nicolas: adiciona novo veículo no estado local
-  const adicionar = () => {
+  // Cadastro: valida, grava no SQLite e atualiza a lista
+  const adicionar = async () => {
     if (!modelo.trim() || !placa.trim() || !ano.trim()) {
       setErro("Modelo, placa e ano são obrigatórios.");
       return;
     }
-    const novo = {
-      id: `v${Date.now()}`,
-      modelo: modelo.trim(),
-      placa: placa.trim().toUpperCase(),
-      ano: Number(ano) || 0,
-      km: Number(km) || 0,
-      cor: cor.trim() || "—",
-    };
-    setVeiculos((lista) => [novo, ...lista]);
-    limparForm();
-    setModalAberto(false);
+    try {
+      const novo = await inserirVeiculo({
+        modelo: modelo.trim(),
+        placa: placa.trim().toUpperCase(),
+        ano: Number(ano) || 0,
+        km: Number(km) || 0,
+        cor: cor.trim() || "—",
+      });
+      setVeiculos((lista) => [novo, ...lista]);
+      limparForm();
+      setModalAberto(false);
+    } catch (e) {
+      // placa é UNIQUE no banco
+      setErro(
+        String(e?.message || "").includes("UNIQUE")
+          ? "Já existe um veículo com essa placa."
+          : "Não foi possível salvar o veículo."
+      );
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -120,12 +141,14 @@ export default function VeiculosScreen() {
         showsVerticalScrollIndicator={false}
         testID="veiculos-list"
         ListEmptyComponent={
+          carregando ? null : (
           <View style={styles.vazio}>
             <Text style={styles.vazioTitulo}>Nenhum veículo cadastrado</Text>
             <Text style={styles.vazioTexto}>
               Toque em "+ Adicionar" para registrar seu primeiro veículo.
             </Text>
           </View>
+          )
         }
       />
 

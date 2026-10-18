@@ -4,12 +4,12 @@
 // FlatList com cards de agendamento + ações Confirmar/Recusar
 // ============================================================
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/Header";
 import CardAgendamento from "../components/CardAgendamento";
-import { AGENDAMENTOS_MOCK } from "../mocks/data";
+import { listarAgendamentos, atualizarStatus } from "../database/db";
 import { colors, spacing, radius } from "../theme";
 
 const FILTROS = ["Todos", "Agendado", "Confirmado", "Em Andamento", "Recusado"];
@@ -27,23 +27,34 @@ function dataFormatada() {
 export default function AgendaOficinaScreen() {
   const insets = useSafeAreaInsets();
 
-  // Desenvolvido por Luiz: estado da agenda e manipulação de status
-  const [agendamentos, setAgendamentos] = useState(AGENDAMENTOS_MOCK);
+  // Checkpoint 3: agendamentos vêm do SQLite (tabela "agendamentos")
+  const [agendamentos, setAgendamentos] = useState([]);
   const [filtro, setFiltro] = useState("Todos");
 
-  // Desenvolvido por Luiz: altera status para "Confirmado"
-  const confirmar = (id) => {
-    setAgendamentos((atual) =>
-      atual.map((a) => (a.id === id ? { ...a, status: "Confirmado" } : a)),
-    );
+  useEffect(() => {
+    let ativo = true;
+    listarAgendamentos()
+      .then((lista) => ativo && setAgendamentos(lista))
+      .catch((e) => console.warn("[db] erro ao listar agenda:", e));
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  // Grava o novo status no SQLite e reflete na tela
+  const mudarStatus = async (id, status) => {
+    try {
+      await atualizarStatus(id, status);
+      setAgendamentos((atual) =>
+        atual.map((a) => (a.id === id ? { ...a, status } : a)),
+      );
+    } catch (e) {
+      console.warn("[db] erro ao atualizar status:", e);
+    }
   };
 
-  // Desenvolvido por Luiz: altera status para "Recusado"
-  const recusar = (id) => {
-    setAgendamentos((atual) =>
-      atual.map((a) => (a.id === id ? { ...a, status: "Recusado" } : a)),
-    );
-  };
+  const confirmar = (id) => mudarStatus(id, "Confirmado");
+  const recusar = (id) => mudarStatus(id, "Recusado");
 
   const lista = useMemo(() => {
     if (filtro === "Todos") return agendamentos;

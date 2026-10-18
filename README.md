@@ -3,7 +3,7 @@
 Aplicativo mobile desenvolvido em **React Native + Expo** para a disciplina de **Programação para Dispositivos Móveis em Android**.
 
 **Dupla:** Nicolas Gabriel & Luiz Eduardo
-**Entrega:** Checkpoint 2 – Interface funcional (16/10)
+**Entregas:** Checkpoint 2 – Interface funcional (16/10) · Checkpoint 3 – Persistência (23/10)
 
 ---
 
@@ -30,6 +30,21 @@ O tema visual é *dark-first* com destaque laranja industrial.
 - **Novo veículo:** exige modelo, placa e ano; placa é convertida para maiúsculas; ano e KM aceitam apenas teclado numérico.
 - **Diagnóstico IA:** não envia mensagem vazia; limite de 500 caracteres; tratamento de erro de conexão.
 
+## 💾 Persistência (Checkpoint 3)
+
+Os dados de **veículos** e da **agenda** agora ficam salvos em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`), então continuam no aparelho mesmo depois de fechar o app.
+
+| Tabela | Campos | Usada em |
+|--------|--------|----------|
+| `veiculos` | id, modelo, placa (UNIQUE), ano, km, cor | Meus Veículos |
+| `agendamentos` | id, horario, cliente, veiculo, placa, servico, status | Agenda do Dia |
+
+- **Cadastro:** o modal de novo veículo faz `INSERT` no SQLite; placa repetida é recusada (`UNIQUE`).
+- **Consulta:** ao abrir as telas, a lista vem de `SELECT` no banco.
+- **Atualização:** Confirmar/Recusar na agenda fazem `UPDATE` do status, que permanece após reabrir o app.
+- **Primeiro uso:** as tabelas são criadas e populadas com os dados de exemplo (`src/mocks/data.js`).
+- Código em `frontend/src/database/db.js`.
+
 ## 🖼️ Capturas de tela
 
 | Login | Meus Veículos | Novo Veículo |
@@ -47,7 +62,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 - TanStack React Query
 - expo-image, expo-linear-gradient, react-native-safe-area-context
 - Backend: FastAPI + MongoDB (rota de diagnóstico com IA)
-- Dados de veículos e agenda em **mocks locais** (`frontend/src/mocks/data.js`)
+- Persistência local com **SQLite** (`expo-sqlite`); `frontend/src/mocks/data.js` só fornece os dados iniciais
 
 ## 🗂️ Estrutura
 
@@ -65,6 +80,7 @@ frontend/
     ├── components/
     │   ├── Header.js
     │   └── CardAgendamento.js        # Luiz
+    ├── database/db.js               # SQLite: tabelas e consultas
     ├── mocks/data.js
     └── theme.ts
 backend/
@@ -76,6 +92,7 @@ backend/
 ```bash
 cd frontend
 yarn install
+npx expo install expo-sqlite   # necessário para a persistência (Checkpoint 3)
 npx expo start
 ```
 
@@ -99,5 +116,5 @@ O backend requer as variáveis `MONGO_URL`, `DB_NAME` e `EMERGENT_LLM_KEY` no ar
 
 ## 🔜 Próximos passos
 
-- Autenticação real e persistência de veículos/agendamentos no backend.
+- Autenticação real e sincronização dos dados do SQLite com o backend.
 - Cliente poder solicitar agendamento direto pelo app.
