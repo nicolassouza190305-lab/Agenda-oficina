@@ -78,10 +78,12 @@ export default function VeiculosScreen() {
       setModalAberto(false);
     } catch (e) {
       // placa é UNIQUE no banco
+      console.warn("[db] erro ao salvar veículo:", e);
+      const msg = String(e?.message || e);
       setErro(
-        String(e?.message || "").includes("UNIQUE")
+        msg.includes("UNIQUE")
           ? "Já existe um veículo com essa placa."
-          : "Não foi possível salvar o veículo."
+          : `Não foi possível salvar: ${msg}`
       );
     }
   };
