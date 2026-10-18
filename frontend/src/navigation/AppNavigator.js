@@ -3,16 +3,13 @@
 // Dupla: Nicolas Gabriel & Luiz Eduardo
 //
 // Estrutura:
-//   Stack (raiz)
-//    ├─ Login  -> LoginScreen            (dupla)
-//    └─ Tabs   -> Tab Navigator
-//         ├─ Veiculos    -> VeiculosScreen        (Nicolas)
-//         ├─ Agenda      -> AgendaOficinaScreen   (Luiz)
-//         └─ Diagnostico -> DiagnosticoScreen     (extra: IA)
+//   Sem login  -> LoginScreen (entrar / cadastrar cliente)
+//   Cliente    -> Tabs: Veículos (Nicolas) · Horários (consulta) · IA
+//   Oficina    -> Tabs: Agenda (Luiz: confirmar/cancelar) · IA
 // ============================================================
 
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import {
   NavigationContainer,
   NavigationIndependentTree,
@@ -25,6 +22,8 @@ import LoginScreen from "../screens/LoginScreen";
 import VeiculosScreen from "../screens/VeiculosScreen";
 import AgendaOficinaScreen from "../screens/AgendaOficinaScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
+import HorariosScreen from "../screens/HorariosScreen";
+import { useAuth } from "../context/AuthContext";
 import { colors, spacing } from "../theme";
 
 const Stack = createNativeStackNavigator();
@@ -49,69 +48,80 @@ function TabIcon({ label, focused }) {
   );
 }
 
-// Tab Navigator: conecta as telas dos dois integrantes
-function TabsNavigator() {
+// Opções comuns da barra de abas
+function useTabOptions() {
   const insets = useSafeAreaInsets();
+  return {
+    headerShown: false,
+    tabBarShowLabel: false,
+    tabBarStyle: {
+      backgroundColor: colors.surface,
+      borderTopColor: colors.border,
+      borderTopWidth: 1,
+      paddingTop: spacing.sm,
+      paddingBottom: insets.bottom > 0 ? insets.bottom : spacing.sm,
+      ...(Platform.OS === "web" ? { height: 72 } : {}),
+    },
+    tabBarItemStyle: { alignSelf: "center" },
+    sceneStyle: { backgroundColor: colors.background },
+  };
+}
 
+const aba = (label) => ({
+  tabBarIcon: ({ focused }) => <TabIcon label={label} focused={focused} />,
+});
+
+// Abas do CLIENTE: seus veículos, consulta de horários e IA
+function TabsCliente() {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingTop: spacing.sm,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : spacing.sm,
-          ...(Platform.OS === "web" ? { height: 72 } : {}),
-        },
-        tabBarItemStyle: { alignSelf: "center" },
-        sceneStyle: { backgroundColor: colors.background },
-      }}
-    >
+    <Tab.Navigator screenOptions={useTabOptions()}>
       {/* Desenvolvido por Nicolas: gerenciamento de veículos */}
-      <Tab.Screen
-        name="Veiculos"
-        component={VeiculosScreen}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="VEÍCULOS" focused={focused} />,
-        }}
-      />
-      {/* Desenvolvido por Luiz: manipulação de status da agenda */}
-      <Tab.Screen
-        name="Agenda"
-        component={AgendaOficinaScreen}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="AGENDA" focused={focused} />,
-        }}
-      />
-      {/* Extra da dupla: assistente de diagnóstico com IA */}
-      <Tab.Screen
-        name="Diagnostico"
-        component={DiagnosticoScreen}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon label="IA" focused={focused} />,
-        }}
-      />
+      <Tab.Screen name="Veiculos" component={VeiculosScreen} options={aba("VEÍCULOS")} />
+      <Tab.Screen name="Horarios" component={HorariosScreen} options={aba("HORÁRIOS")} />
+      <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} options={aba("IA")} />
     </Tab.Navigator>
   );
 }
 
-// Stack raiz: Login -> Tabs
+// Abas da OFICINA (dono): agenda completa e IA
+function TabsOficina() {
+  return (
+    <Tab.Navigator screenOptions={useTabOptions()}>
+      {/* Desenvolvido por Luiz: manipulação de status da agenda */}
+      <Tab.Screen name="Agenda" component={AgendaOficinaScreen} options={aba("AGENDA")} />
+      <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} options={aba("IA")} />
+    </Tab.Navigator>
+  );
+}
+
+// Raiz: sem sessão -> Login; com sessão -> abas conforme o perfil
 export default function AppNavigator() {
+  const { usuario, carregando } = useAuth();
+
+  if (carregando) {
+    return (
+      <View style={styles.splash}>
+        <ActivityIndicator color={colors.brandPrimary} size="large" />
+      </View>
+    );
+  }
+
   return (
     <NavigationIndependentTree>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Login"
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.background },
           }}
         >
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Tabs" component={TabsNavigator} />
+          {!usuario ? (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          ) : usuario.perfil === "Oficina" ? (
+            <Stack.Screen name="TabsOficina" component={TabsOficina} />
+          ) : (
+            <Stack.Screen name="TabsCliente" component={TabsCliente} />
+          )}
         </Stack.Navigator>
       </NavigationContainer>
     </NavigationIndependentTree>
@@ -119,6 +129,12 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
   iconWrap: {
     alignItems: "center",
     justifyContent: "center",

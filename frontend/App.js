@@ -4,7 +4,7 @@
 // Dupla: Nicolas Gabriel & Luiz Eduardo
 //
 // Monta os providers globais e renderiza a navegação
-// (Stack: Login -> Tabs Veículos / Agenda / IA).
+// (Login -> abas por perfil: Cliente ou Oficina).
 // ============================================================
 
 import React from "react";
@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "./src/components/error-boundary";
 import { queryClient } from "./src/query-client";
 import AppNavigator from "./src/navigation/AppNavigator";
+import { AuthProvider } from "./src/context/AuthContext";
 
 LogBox.ignoreAllLogs(true);
 
@@ -26,7 +27,9 @@ export default function App() {
         <KeyboardProvider>
           <SafeAreaProvider>
             <StatusBar barStyle="light-content" backgroundColor="#111113" />
-            <AppNavigator />
+            <AuthProvider>
+              <AppNavigator />
+            </AuthProvider>
           </SafeAreaProvider>
         </KeyboardProvider>
       </QueryClientProvider>

@@ -9,69 +9,79 @@ import { View, Text, FlatList, Pressable, StyleSheet, ScrollView } from "react-n
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/Header";
 import CardAgendamento from "../components/CardAgendamento";
+import DiaSelector from "../components/DiaSelector";
 import { listarAgendamentos, atualizarStatus } from "../database/db";
+import { useAuth } from "../context/AuthContext";
+import { proximosDias, descreverDia } from "../utils/datas";
 import { colors, spacing, radius } from "../theme";
 
-const FILTROS = ["Todos", "Agendado", "Confirmado", "Em Andamento", "Recusado"];
-
-function dataFormatada() {
-  const d = new Date();
-  const dias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-  const meses = [
-    "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-    "Jul", "Ago", "Set", "Out", "Nov", "Dez",
-  ];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]}`;
-}
+const FILTROS = ["Todos", "Agendado", "Confirmado", "Em Andamento", "Cancelado"];
 
 export default function AgendaOficinaScreen() {
   const insets = useSafeAreaInsets();
+  const { usuario } = useAuth(); // só o dono da oficina chega nesta tela
 
-  // Checkpoint 3: agendamentos vêm do SQLite (tabela "agendamentos")
+  // Agendamentos vêm do SQLite (tabela "agendamentos")
   const [agendamentos, setAgendamentos] = useState([]);
   const [filtro, setFiltro] = useState("Todos");
+  const dias = useMemo(() => proximosDias(7), []);
+  const [dia, setDia] = useState(dias[0].iso);
+  const [erro, setErro] = useState("");
 
   useEffect(() => {
     let ativo = true;
-    listarAgendamentos()
+    listarAgendamentos(usuario.id)
       .then((lista) => ativo && setAgendamentos(lista))
-      .catch((e) => console.warn("[db] erro ao listar agenda:", e));
+      .catch((e) => {
+        console.warn("[db] erro ao listar agenda:", e);
+        ativo && setErro("Não foi possível carregar a agenda.");
+      });
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [usuario.id]);
 
-  // Grava o novo status no SQLite e reflete na tela
+  // Grava o novo status no SQLite (o banco só aceita se for a oficina) e reflete na tela
   const mudarStatus = async (id, status) => {
     try {
-      await atualizarStatus(id, status);
+      await atualizarStatus(usuario.id, id, status);
       setAgendamentos((atual) =>
         atual.map((a) => (a.id === id ? { ...a, status } : a)),
       );
+      setErro("");
     } catch (e) {
       console.warn("[db] erro ao atualizar status:", e);
+      setErro(e?.erroApp ? e.message : "Não foi possível atualizar o agendamento.");
     }
   };
 
   const confirmar = (id) => mudarStatus(id, "Confirmado");
-  const recusar = (id) => mudarStatus(id, "Recusado");
+  const recusar = (id) => mudarStatus(id, "Cancelado");
+
+  // Agendamentos do dia selecionado
+  const doDia = useMemo(
+    () => agendamentos.filter((a) => a.data === dia),
+    [agendamentos, dia],
+  );
 
   const lista = useMemo(() => {
-    if (filtro === "Todos") return agendamentos;
-    return agendamentos.filter((a) => a.status === filtro);
-  }, [agendamentos, filtro]);
+    if (filtro === "Todos") return doDia;
+    return doDia.filter((a) => a.status === filtro);
+  }, [doDia, filtro]);
 
   const resumo = useMemo(() => {
-    const total = agendamentos.length;
-    const confirmados = agendamentos.filter((a) => a.status === "Confirmado").length;
-    const emAndamento = agendamentos.filter((a) => a.status === "Em Andamento").length;
-    const pendentes = agendamentos.filter((a) => a.status === "Agendado").length;
+    const total = doDia.length;
+    const confirmados = doDia.filter((a) => a.status === "Confirmado").length;
+    const emAndamento = doDia.filter((a) => a.status === "Em Andamento").length;
+    const pendentes = doDia.filter((a) => a.status === "Agendado").length;
     return { total, confirmados, emAndamento, pendentes };
-  }, [agendamentos]);
+  }, [doDia]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Header titulo="Agenda do Dia" subtitulo={dataFormatada()} testID="agenda-header" />
+      <Header titulo="Agenda do Dia" subtitulo={descreverDia(dia)} testID="agenda-header" />
+
+      <DiaSelector dias={dias} selecionado={dia} onSelecionar={setDia} />
 
       {/* Resumo */}
       <View style={styles.resumoLinha}>
@@ -122,6 +132,8 @@ export default function AgendaOficinaScreen() {
         })}
       </ScrollView>
 
+      {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+
       {/* Lista de agendamentos */}
       <FlatList
         data={lista}
@@ -136,7 +148,7 @@ export default function AgendaOficinaScreen() {
           <View style={styles.vazio}>
             <Text style={styles.vazioTitulo}>Nenhum agendamento</Text>
             <Text style={styles.vazioTexto}>
-              Não há serviços com o filtro "{filtro}" para hoje.
+              Não há serviços com o filtro "{filtro}" neste dia.
             </Text>
           </View>
         }
@@ -146,6 +158,12 @@ export default function AgendaOficinaScreen() {
 }
 
 const styles = StyleSheet.create({
+  erro: {
+    color: colors.error,
+    fontSize: 13,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.surface,

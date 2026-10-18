@@ -21,10 +21,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/Header";
 import { listarVeiculos, inserirVeiculo } from "../database/db";
+import { useAuth, mensagemDeErro } from "../context/AuthContext";
 import { colors, spacing, radius } from "../theme";
 
 export default function VeiculosScreen() {
   const insets = useSafeAreaInsets();
+  const { usuario } = useAuth(); // cada cliente vê e cadastra só os seus veículos
 
   // Checkpoint 3: veículos vêm do SQLite (tabela "veiculos")
   const [veiculos, setVeiculos] = useState([]);
@@ -41,14 +43,14 @@ export default function VeiculosScreen() {
   // Consulta: carrega a lista salva ao abrir a tela
   useEffect(() => {
     let ativo = true;
-    listarVeiculos()
+    listarVeiculos(usuario.id)
       .then((lista) => ativo && setVeiculos(lista))
       .catch((e) => console.warn("[db] erro ao listar veículos:", e))
       .finally(() => ativo && setCarregando(false));
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [usuario.id]);
 
   const limparForm = () => {
     setModelo("");
@@ -59,14 +61,14 @@ export default function VeiculosScreen() {
     setErro("");
   };
 
-  // Cadastro: valida, grava no SQLite e atualiza a lista
+  // Cadastro: valida, grava no SQLite (no nome do cliente logado) e atualiza a lista
   const adicionar = async () => {
     if (!modelo.trim() || !placa.trim() || !ano.trim()) {
       setErro("Modelo, placa e ano são obrigatórios.");
       return;
     }
     try {
-      const novo = await inserirVeiculo({
+      const novo = await inserirVeiculo(usuario.id, {
         modelo: modelo.trim(),
         placa: placa.trim().toUpperCase(),
         ano: Number(ano) || 0,
@@ -77,14 +79,8 @@ export default function VeiculosScreen() {
       limparForm();
       setModalAberto(false);
     } catch (e) {
-      // placa é UNIQUE no banco
       console.warn("[db] erro ao salvar veículo:", e);
-      const msg = String(e?.message || e);
-      setErro(
-        msg.includes("UNIQUE")
-          ? "Já existe um veículo com essa placa."
-          : `Não foi possível salvar: ${msg}`
-      );
+      setErro(mensagemDeErro(e, "Não foi possível salvar"));
     }
   };
 

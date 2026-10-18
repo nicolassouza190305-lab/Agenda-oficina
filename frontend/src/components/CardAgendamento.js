@@ -14,7 +14,7 @@ function corDoStatus(status) {
       return { bg: colors.success, fg: colors.onSuccess };
     case "Em Andamento":
       return { bg: colors.brandSecondary, fg: colors.onBrandSecondary };
-    case "Recusado":
+    case "Cancelado":
       return { bg: colors.error, fg: colors.onError };
     case "Agendado":
     default:
@@ -24,7 +24,9 @@ function corDoStatus(status) {
 
 export default function CardAgendamento({ item, onConfirmar, onRecusar }) {
   const cores = corDoStatus(item.status);
-  const podeAgir = item.status === "Agendado";
+  // Só a oficina vê esta tela. Agendado: confirmar/recusar. Confirmado: cancelar.
+  const podeConfirmar = item.status === "Agendado";
+  const podeCancelar = item.status === "Agendado" || item.status === "Confirmado";
 
   return (
     <View style={styles.linha} testID={`agendamento-${item.id}`}>
@@ -59,22 +61,26 @@ export default function CardAgendamento({ item, onConfirmar, onRecusar }) {
           </View>
         </View>
 
-        {podeAgir ? (
+        {podeCancelar ? (
           <View style={styles.acoes}>
             <Pressable
               onPress={() => onRecusar?.(item.id)}
               style={({ pressed }) => [styles.btnRecusar, pressed && styles.btnPressed]}
               testID={`btn-recusar-${item.id}`}
             >
-              <Text style={styles.btnRecusarTexto}>Recusar</Text>
+              <Text style={styles.btnRecusarTexto}>
+                {podeConfirmar ? "Recusar" : "Cancelar agendamento"}
+              </Text>
             </Pressable>
-            <Pressable
-              onPress={() => onConfirmar?.(item.id)}
-              style={({ pressed }) => [styles.btnConfirmar, pressed && styles.btnPressed]}
-              testID={`btn-confirmar-${item.id}`}
-            >
-              <Text style={styles.btnConfirmarTexto}>Confirmar</Text>
-            </Pressable>
+            {podeConfirmar ? (
+              <Pressable
+                onPress={() => onConfirmar?.(item.id)}
+                style={({ pressed }) => [styles.btnConfirmar, pressed && styles.btnPressed]}
+                testID={`btn-confirmar-${item.id}`}
+              >
+                <Text style={styles.btnConfirmarTexto}>Confirmar</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </View>

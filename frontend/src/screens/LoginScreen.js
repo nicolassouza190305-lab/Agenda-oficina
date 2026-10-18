@@ -1,7 +1,7 @@
 // ============================================================
 // LoginScreen - Tela 1 (Login / Cadastro)
 // Desenvolvido em conjunto pela dupla (Nicolas + Luiz)
-// Toggle entre perfil "Cliente" e "Oficina" + navegação para Tabs
+// Login real (SQLite): Cliente pode criar conta; Oficina é conta do dono
 // ============================================================
 
 import React, { useState } from "react";
@@ -19,31 +19,58 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "../theme";
+import { useAuth, mensagemDeErro } from "../context/AuthContext";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1762604462421-fff920b0c418?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbW9kZXJuJTIwZ2FyYWdlJTIwd29ya3Nob3AlMjBpbnRlcmlvciUyMG1vb2R5fGVufDB8fHx8MTc5MTU1NzEyMnww&ixlib=rb-4.1.0&q=85";
 
 export default function LoginScreen() {
-  const navigation = useNavigation();
+  const { entrar: entrarNaConta, cadastrar } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [perfil, setPerfil] = useState("Cliente"); // "Cliente" | "Oficina"
   const [modo, setModo] = useState("Entrar"); // "Entrar" | "Cadastrar"
+  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
   const [erro, setErro] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
-  const entrar = () => {
+  // Oficina é conta do dono: só entra, não cria conta pelo app
+  const cadastrando = modo === "Cadastrar" && perfil === "Cliente";
+
+  const trocarPerfil = (novo) => {
+    setPerfil(novo);
+    if (novo === "Oficina") setModo("Entrar");
+    setErro("");
+  };
+
+  const enviar = async () => {
     if (!email.trim() || !senha.trim()) {
       setErro("Preencha email e senha para continuar.");
       return;
     }
+    if (cadastrando) {
+      if (nome.trim().length < 2) return setErro("Informe seu nome.");
+      if (!EMAIL_RE.test(email.trim())) return setErro("Informe um e-mail válido.");
+      if (senha.length < 6) return setErro("A senha deve ter pelo menos 6 caracteres.");
+      if (senha !== confirmar) return setErro("As senhas não coincidem.");
+    }
     setErro("");
-    // Navega para o grupo de abas (Veículos / Agenda / IA)
-    navigation.replace("Tabs", { perfil });
+    setEnviando(true);
+    try {
+      // Ao autenticar, a navegação troca sozinha para as abas do perfil
+      if (cadastrando) await cadastrar({ nome, email, senha });
+      else await entrarNaConta(email, senha, perfil);
+    } catch (e) {
+      setErro(mensagemDeErro(e, "Não foi possível continuar."));
+      setEnviando(false);
+    }
   };
 
   return (
@@ -82,7 +109,7 @@ export default function LoginScreen() {
               {/* Toggle Cliente / Oficina */}
               <View style={styles.toggle} testID="perfil-toggle">
                 <Pressable
-                  onPress={() => setPerfil("Cliente")}
+                  onPress={() => trocarPerfil("Cliente")}
                   style={[styles.toggleItem, perfil === "Cliente" && styles.toggleItemAtivo]}
                   testID="perfil-cliente"
                 >
@@ -96,7 +123,7 @@ export default function LoginScreen() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => setPerfil("Oficina")}
+                  onPress={() => trocarPerfil("Oficina")}
                   style={[styles.toggleItem, perfil === "Oficina" && styles.toggleItemAtivo]}
                   testID="perfil-oficina"
                 >
@@ -112,6 +139,21 @@ export default function LoginScreen() {
               </View>
 
               {/* Inputs */}
+              {cadastrando ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nome</Text>
+                  <TextInput
+                    value={nome}
+                    onChangeText={setNome}
+                    placeholder="Seu nome"
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="words"
+                    style={styles.input}
+                    testID="cadastro-nome-input"
+                  />
+                </View>
+              ) : null}
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email</Text>
                 <TextInput
@@ -139,6 +181,21 @@ export default function LoginScreen() {
                 />
               </View>
 
+              {cadastrando ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Confirmar senha</Text>
+                  <TextInput
+                    value={confirmar}
+                    onChangeText={setConfirmar}
+                    placeholder="••••••••"
+                    placeholderTextColor={colors.muted}
+                    secureTextEntry
+                    style={styles.input}
+                    testID="cadastro-confirmar-input"
+                  />
+                </View>
+              ) : null}
+
               {erro ? (
                 <Text style={styles.erro} testID="login-erro">
                   {erro}
@@ -147,27 +204,43 @@ export default function LoginScreen() {
 
               {/* CTA */}
               <Pressable
-                onPress={entrar}
-                style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+                onPress={enviar}
+                disabled={enviando}
+                style={({ pressed }) => [styles.cta, (pressed || enviando) && styles.ctaPressed]}
                 testID="login-submit-button"
               >
                 <Text style={styles.ctaTexto}>
-                  {modo === "Entrar" ? "Entrar" : "Cadastrar"} como {perfil}
+                  {enviando
+                    ? "Aguarde..."
+                    : cadastrando
+                    ? "Criar conta de Cliente"
+                    : `Entrar como ${perfil}`}
                 </Text>
               </Pressable>
 
-              {/* Alternar modo */}
-              <Pressable
-                onPress={() => setModo(modo === "Entrar" ? "Cadastrar" : "Entrar")}
-                style={styles.alternar}
-                testID="login-toggle-modo"
-              >
-                <Text style={styles.alternarTexto}>
-                  {modo === "Entrar"
-                    ? "Novo por aqui? Criar conta"
-                    : "Já tem conta? Fazer login"}
-                </Text>
-              </Pressable>
+              {/* Alternar modo (só Cliente pode criar conta) */}
+              {perfil === "Cliente" ? (
+                <Pressable
+                  onPress={() => {
+                    setModo(modo === "Entrar" ? "Cadastrar" : "Entrar");
+                    setErro("");
+                  }}
+                  style={styles.alternar}
+                  testID="login-toggle-modo"
+                >
+                  <Text style={styles.alternarTexto}>
+                    {modo === "Entrar"
+                      ? "Novo por aqui? Criar conta"
+                      : "Já tem conta? Fazer login"}
+                  </Text>
+                </Pressable>
+              ) : (
+                <View style={styles.alternar}>
+                  <Text style={styles.alternarTexto} testID="login-aviso-oficina">
+                    Acesso restrito ao dono da oficina.
+                  </Text>
+                </View>
+              )}
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
