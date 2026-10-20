@@ -28,17 +28,48 @@ export function horaAgora() {
   return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 
-// Próximos n dias a partir de hoje, para os seletores de dia
+// A oficina funciona de segunda a sexta (sábado e domingo são fechados)
+export function ehDiaUtil(d) {
+  const w = d.getDay();
+  return w !== 0 && w !== 6;
+}
+
+export function ehDiaUtilISO(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return ehDiaUtil(new Date(y, m - 1, d));
+}
+
+// O próprio dia, se for útil; senão a próxima segunda-feira
+export function proximoDiaUtil(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  while (!ehDiaUtil(x)) x.setDate(x.getDate() + 1);
+  return x;
+}
+
+// n dias úteis depois do primeiro dia útil a partir de d
+export function somarDiasUteis(d, n) {
+  let x = proximoDiaUtil(d);
+  for (let i = 0; i < n; i++) x = proximoDiaUtil(somarDias(x, 1));
+  return x;
+}
+
+// Próximos n DIAS ÚTEIS (sem sábado e domingo), para os seletores de dia
 export function proximosDias(n = 7) {
   const hoje = new Date();
-  return Array.from({ length: n }, (_, i) => {
-    const d = somarDias(hoje, i);
-    return {
-      iso: paraISO(d),
-      rotulo: i === 0 ? "Hoje" : i === 1 ? "Amanhã" : DIAS_CURTO[d.getDay()],
+  const hojeIso = paraISO(hoje);
+  const amanhaIso = paraISO(somarDias(hoje, 1));
+  const dias = [];
+  let d = proximoDiaUtil(hoje);
+  for (let i = 0; i < n; i++) {
+    const iso = paraISO(d);
+    dias.push({
+      iso,
+      rotulo: iso === hojeIso ? "Hoje" : iso === amanhaIso ? "Amanhã" : DIAS_CURTO[d.getDay()],
       sub: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`,
-    };
-  });
+    });
+    d = proximoDiaUtil(somarDias(d, 1));
+  }
+  return dias;
 }
 
 // "2026-10-19" -> "Segunda, 19 de Out"

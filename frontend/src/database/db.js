@@ -9,6 +9,7 @@
 //   agendamentos  serviços marcados (data + horário + status)
 //
 // Regras de permissão são aplicadas AQUI (não só escondendo botões):
+//   - a oficina atende de segunda a sexta (sábado e domingo são fechados)
 //   - só a Oficina lista agendamentos e muda o status (confirmar/cancelar)
 //   - só o Cliente cadastra/consulta veículos (e só os seus)
 //   - o Cliente consulta quais horários estão ocupados (sem dados de ninguém),
@@ -23,15 +24,20 @@ import {
   HORARIOS_ATENDIMENTO,
 } from "../mocks/data";
 import { gerarSalt, hashSenha } from "./seguranca";
-import { paraISO, somarDias, hojeISO, horaAgora } from "../utils/datas";
+import { paraISO, somarDiasUteis, ehDiaUtilISO, hojeISO, horaAgora } from "../utils/datas";
 
 // VERSAO_ESQUEMA: versão atual do banco.
 // VERSAO_MINIMA: abaixo dela as tabelas de exemplo são recriadas; entre as duas
 // o banco é só ajustado (ALTER TABLE), sem perder os dados cadastrados.
-const VERSAO_ESQUEMA = 3;
+const VERSAO_ESQUEMA = 4;
 const VERSAO_MINIMA = 2;
 
 let dbPromise = null;
+
+// Id único para registros novos (hora + sufixo aleatório, evita colisão no mesmo milissegundo)
+function novoId(prefixo) {
+  return `${prefixo}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
 
 // Erro "esperado" com mensagem amigável para mostrar ao usuário
 function erroApp(mensagem) {
@@ -121,10 +127,47 @@ async function iniciar() {
 
   const { n } = await db.getFirstAsync("SELECT COUNT(*) AS n FROM usuarios");
   if (n === 0) await popular(db);
+  else if (atual < VERSAO_ESQUEMA) await reagendarExemplos(db);
   if (atual < VERSAO_ESQUEMA) {
     await db.execAsync(`PRAGMA user_version = ${VERSAO_ESQUEMA}`);
   }
   return db;
+}
+
+// v3 -> v4 (oficina fecha sábado e domingo): move os agendamentos de EXEMPLO
+// (ids dos mocks, sem cliente vinculado) para dias úteis. Pedidos reais de
+// clientes nunca são alterados. Se algum exemplo bater com um horário já
+// ocupado por um pedido real, ele é marcado como Cancelado (libera o índice único).
+async function reagendarExemplos(db) {
+  const ids = AGENDAMENTOS_MOCK.map((x) => x.id);
+  const marcas = ids.map(() => "?").join(",");
+  await db.withTransactionAsync(async () => {
+    const atuais = await db.getAllAsync(
+      `SELECT id, data FROM agendamentos WHERE usuario_id IS NULL AND id IN (${marcas})`,
+      ids
+    );
+    const dataOriginal = Object.fromEntries(atuais.map((r) => [r.id, r.data]));
+    // fase 1: tira todos do caminho para os horários novos não colidirem entre si
+    for (const id of Object.keys(dataOriginal)) {
+      await db.runAsync("UPDATE agendamentos SET data = ? WHERE id = ?", [`tmp:${id}`, id]);
+    }
+    // fase 2: coloca cada um no dia útil correspondente
+    const hoje = new Date();
+    for (const x of AGENDAMENTOS_MOCK) {
+      if (!(x.id in dataOriginal)) continue;
+      try {
+        await db.runAsync("UPDATE agendamentos SET data = ? WHERE id = ?", [
+          paraISO(somarDiasUteis(hoje, x.diaOffset ?? 0)),
+          x.id,
+        ]);
+      } catch (e) {
+        await db.runAsync(
+          "UPDATE agendamentos SET data = ?, status = 'Cancelado' WHERE id = ?",
+          [dataOriginal[x.id], x.id]
+        );
+      }
+    }
+  });
 }
 
 // Dados iniciais, tudo ou nada (transação)
@@ -150,7 +193,7 @@ async function popular(db) {
     for (const x of AGENDAMENTOS_MOCK) {
       await db.runAsync(
         "INSERT INTO agendamentos (id, data, horario, cliente, veiculo, placa, servico, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [x.id, paraISO(somarDias(hoje, x.diaOffset ?? 0)), x.horario, x.cliente, x.veiculo, x.placa, x.servico, x.status]
+        [x.id, paraISO(somarDiasUteis(hoje, x.diaOffset ?? 0)), x.horario, x.cliente, x.veiculo, x.placa, x.servico, x.status]
       );
     }
   });
@@ -243,7 +286,7 @@ export async function listarVeiculos(usuarioId) {
 export async function inserirVeiculo(usuarioId, { modelo, placa, ano, km, cor }) {
   const db = await getDb();
   await exigirPerfil(db, usuarioId, "Cliente");
-  const novo = { id: `v${Date.now()}`, modelo, placa, ano, km, cor };
+  const novo = { id: novoId("v"), modelo, placa, ano, km, cor };
   try {
     await db.runAsync(
       "INSERT INTO veiculos (id, usuario_id, modelo, placa, ano, km, cor) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -295,6 +338,7 @@ export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId
   if (servicoLimpo.length > 120) throw erroApp("Descreva o serviço em até 120 caracteres.");
   if (!HORARIOS_ATENDIMENTO.includes(horario)) throw erroApp("Horário inválido.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data))) throw erroApp("Data inválida.");
+  if (!ehDiaUtilISO(data)) throw erroApp("A oficina não funciona aos sábados e domingos.");
   const hoje = hojeISO();
   if (data < hoje || (data === hoje && horario <= horaAgora())) {
     throw erroApp("Esse horário já passou. Escolha outro.");
@@ -309,7 +353,7 @@ export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId
   const u = await db.getFirstAsync("SELECT nome FROM usuarios WHERE id = ?", [usuarioId]);
 
   const novo = {
-    id: `a${Date.now()}`,
+    id: novoId("a"),
     data,
     horario,
     cliente: u.nome,

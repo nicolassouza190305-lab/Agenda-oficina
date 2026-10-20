@@ -41,7 +41,8 @@ export const VEICULOS_MOCK = [
 
 // Desenvolvido por Luiz: agenda de serviços do dia (painel oficina)
 // Status possíveis: "Agendado" | "Confirmado" | "Em Andamento" | "Cancelado"
-// diaOffset: 0 = hoje, 1 = amanhã... (a data real é calculada ao popular o banco)
+// diaOffset: 0 = primeiro dia útil (hoje, ou segunda se for fim de semana), 1 = o dia útil seguinte...
+// (a data real é calculada ao popular o banco; a oficina fecha sábado e domingo)
 export const AGENDAMENTOS_MOCK = [
   {
     id: "a1",

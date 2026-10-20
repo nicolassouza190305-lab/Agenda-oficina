@@ -163,7 +163,7 @@ export default function HorariosScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Header
         titulo="Horários"
-        subtitulo="Escolha um dia e solicite seu horário"
+        subtitulo="Atendimento de segunda a sexta"
         testID="horarios-header"
       />
 

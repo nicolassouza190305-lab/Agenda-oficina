@@ -28,6 +28,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 
 ### Validações básicas implementadas
 - **Login:** exibe erro se e-mail ou senha estiverem vazios, se a senha estiver errada ou se o perfil escolhido não for o da conta.
+- **Dias de atendimento:** a oficina funciona de **segunda a sexta**; sábado e domingo são fechados (não aparecem na lista de dias e o banco recusa pedidos nesses dias).
 - **Solicitar horário:** exige um horário livre, um dos seus veículos e a descrição do serviço (3 a 120 caracteres); não aceita horário passado nem já ocupado.
 - **Cadastro de cliente:** nome obrigatório, e-mail válido e único, senha com no mínimo 6 caracteres e confirmação igual.
 - **Novo veículo:** exige modelo, placa e ano; placa é convertida para maiúsculas; ano e KM aceitam apenas teclado numérico.
