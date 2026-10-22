@@ -2,7 +2,9 @@
 // db.js - Persistência com SQLite (expo-sqlite)
 //
 // Tabelas:
-//   oficinas      cada oficina cadastrada (nome único)
+//   oficinas      cada oficina cadastrada, identificada pelo NOME FANTASIA (único).
+//                 nome_busca = nome sem acentos/maiúsculas/espaços extras, usado para
+//                 o cliente informar o nome e ser ligado à oficina
 //   usuarios      contas (Cliente | Oficina), senha com hash + salt.
 //                 TODA conta pertence a uma oficina (oficina_id):
 //                 o dono administra a oficina; o cliente é exclusivo dela
@@ -28,10 +30,18 @@ import { paraISO, somarDiasUteis, ehDiaUtilISO, hojeISO, horaAgora } from "../ut
 // VERSAO_ESQUEMA: versão atual do banco.
 // VERSAO_MINIMA: abaixo dela as tabelas de exemplo são recriadas; entre as duas
 // o banco é só ajustado (ALTER TABLE), sem perder os dados cadastrados.
-const VERSAO_ESQUEMA = 5;
+const VERSAO_ESQUEMA = 6;
 const VERSAO_MINIMA = 2;
 
 let dbPromise = null;
+
+// Nome fantasia -> chave de busca: sem acentos, sem maiúsculas, espaços únicos.
+// "  MECANICA   premium " e "Mecânica Premium" geram a mesma chave.
+function normalizarNome(nome) {
+  let t = String(nome || "");
+  if (typeof t.normalize === "function") t = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return t.toLowerCase().replace(/\s+/g, " ").trim();
+}
 
 // Id único para registros novos (hora + sufixo aleatório, evita colisão no mesmo milissegundo)
 function novoId(prefixo) {
@@ -74,7 +84,8 @@ async function iniciar() {
     CREATE TABLE IF NOT EXISTS oficinas (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       nome      TEXT NOT NULL UNIQUE COLLATE NOCASE,
-      criado_em TEXT NOT NULL
+      criado_em TEXT NOT NULL,
+      nome_busca TEXT
     );
 
     CREATE TABLE IF NOT EXISTS usuarios (
@@ -121,6 +132,8 @@ async function iniciar() {
   await garantirColuna(db, "agendamentos", "usuario_id", "INTEGER REFERENCES usuarios(id) ON DELETE SET NULL"); // v3
   await garantirColuna(db, "usuarios", "oficina_id", "INTEGER REFERENCES oficinas(id)"); // v5
   await garantirColuna(db, "agendamentos", "oficina_id", "INTEGER REFERENCES oficinas(id)"); // v5
+  await garantirColuna(db, "oficinas", "nome_busca", "TEXT"); // v6
+  await preencherNomesBusca(db);
   await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_agendamentos_data ON agendamentos (data, horario);
     CREATE INDEX IF NOT EXISTS idx_agendamentos_usuario ON agendamentos (usuario_id);
@@ -143,12 +156,40 @@ async function iniciar() {
     DROP INDEX IF EXISTS ux_agendamento_horario;
     CREATE UNIQUE INDEX IF NOT EXISTS ux_agendamento_oficina_horario
       ON agendamentos (oficina_id, data, horario) WHERE status <> 'Cancelado';
+    -- Dois nomes fantasia que só diferem por acento/maiúscula contam como o mesmo
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_oficinas_nome_busca ON oficinas (nome_busca);
   `);
 
   if (atual < VERSAO_ESQUEMA) {
     await db.execAsync(`PRAGMA user_version = ${VERSAO_ESQUEMA}`);
   }
   return db;
+}
+
+// v5 -> v6: oficinas já cadastradas ganham a chave de busca do nome fantasia.
+// Se duas oficinas antigas virarem a mesma chave (ex.: "Mecanica" e "Mecânica"), a mais
+// nova recebe um sufixo para não quebrar a unicidade.
+async function preencherNomesBusca(db) {
+  const pendentes = await db.getAllAsync("SELECT id, nome FROM oficinas WHERE nome_busca IS NULL ORDER BY id");
+  if (pendentes.length === 0) return;
+  await db.withTransactionAsync(async () => {
+    for (const o of pendentes) {
+      let chave = normalizarNome(o.nome);
+      const igual = await db.getFirstAsync("SELECT id FROM oficinas WHERE nome_busca = ?", [chave]);
+      if (igual) chave = `${chave}#${o.id}`;
+      await db.runAsync("UPDATE oficinas SET nome_busca = ? WHERE id = ?", [chave, o.id]);
+    }
+  });
+}
+
+// Cria a oficina já com a chave de busca. Retorna o id.
+async function inserirOficina(db, nome, agora) {
+  const r = await db.runAsync("INSERT INTO oficinas (nome, nome_busca, criado_em) VALUES (?, ?, ?)", [
+    nome,
+    normalizarNome(nome),
+    agora,
+  ]);
+  return r.lastInsertRowId;
 }
 
 async function garantirColuna(db, tabela, coluna, ddl) {
@@ -196,8 +237,7 @@ async function reagendarExemplos(db) {
 
 // Cria uma oficina de exemplo com seu dono, seu cliente, veículos e agendamentos
 async function semearOficina(db, def, agora) {
-  const o = await db.runAsync("INSERT INTO oficinas (nome, criado_em) VALUES (?, ?)", [def.nome, agora]);
-  const oficinaId = o.lastInsertRowId;
+  const oficinaId = await inserirOficina(db, def.nome, agora);
 
   const criarUsuario = async (u, perfil) => {
     const salt = gerarSalt();
@@ -254,8 +294,7 @@ async function migrarParaOficinas(db) {
 
     let gs = await db.getFirstAsync("SELECT id FROM oficinas ORDER BY id LIMIT 1");
     if (!gs) {
-      const r = await db.runAsync("INSERT INTO oficinas (nome, criado_em) VALUES (?, ?)", [gsDef.nome, agora]);
-      gs = { id: r.lastInsertRowId };
+      gs = { id: await inserirOficina(db, gsDef.nome, agora) };
     }
     await db.runAsync("UPDATE usuarios SET oficina_id = ? WHERE oficina_id IS NULL", [gs.id]);
     await db.runAsync("UPDATE agendamentos SET oficina_id = ? WHERE oficina_id IS NULL", [gs.id]);
@@ -319,27 +358,23 @@ export async function obterUsuarioLogado() {
   return s ? (await carregarPublico(db, s.usuario_id)) ?? null : null;
 }
 
-// Oficinas disponíveis (o cliente escolhe a sua ao criar a conta)
-export async function listarOficinas() {
-  const db = await getDb();
-  return db.getAllAsync("SELECT id, nome FROM oficinas ORDER BY nome COLLATE NOCASE");
-}
-
 function validarConta({ nome, email, senha }) {
   if (String(nome || "").trim().length < 2) throw erroApp("Informe seu nome.");
   if (!EMAIL_RE.test(normalizarEmail(email))) throw erroApp("Informe um e-mail válido.");
   if (String(senha || "").length < 6) throw erroApp("A senha deve ter pelo menos 6 caracteres.");
 }
 
-// Cadastro de CLIENTE: ele pertence à oficina escolhida e só poderá agendar nela
-export async function cadastrarCliente({ nome, email, senha, oficinaId }) {
+// Cadastro de CLIENTE: ele informa o NOME FANTASIA da oficina. Só se o nome existir a conta é
+// criada, e o cliente passa a pertencer (com exclusividade) a essa oficina e à agenda dela.
+export async function cadastrarCliente({ nome, email, senha, nomeFantasia }) {
   validarConta({ nome, email, senha });
+  const chave = normalizarNome(nomeFantasia);
+  if (!chave) throw erroApp("Informe o nome fantasia da sua oficina.");
   const db = await getDb();
-  const idOficina = Number(oficinaId);
-  const oficina = Number.isInteger(idOficina)
-    ? await db.getFirstAsync("SELECT id FROM oficinas WHERE id = ?", [idOficina])
-    : null;
-  if (!oficina) throw erroApp("Selecione a sua oficina.");
+  const oficina = await db.getFirstAsync("SELECT id FROM oficinas WHERE nome_busca = ?", [chave]);
+  if (!oficina) {
+    throw erroApp("Não encontramos nenhuma oficina com esse nome fantasia. Confira o nome com a sua oficina.");
+  }
 
   const salt = gerarSalt();
   try {
@@ -359,7 +394,7 @@ export async function cadastrarCliente({ nome, email, senha, oficinaId }) {
 export async function cadastrarOficina({ nomeOficina, nome, email, senha }) {
   validarConta({ nome, email, senha });
   const oficinaLimpa = String(nomeOficina || "").trim();
-  if (oficinaLimpa.length < 3) throw erroApp("Informe o nome da oficina (mínimo 3 letras).");
+  if (oficinaLimpa.length < 3) throw erroApp("Informe o nome fantasia da oficina (mínimo 3 letras).");
 
   const db = await getDb();
   const salt = gerarSalt();
@@ -367,16 +402,16 @@ export async function cadastrarOficina({ nomeOficina, nome, email, senha }) {
   try {
     await db.withTransactionAsync(async () => {
       const agora = new Date().toISOString();
-      const o = await db.runAsync("INSERT INTO oficinas (nome, criado_em) VALUES (?, ?)", [oficinaLimpa, agora]);
+      const oficinaId = await inserirOficina(db, oficinaLimpa, agora);
       const r = await db.runAsync(
         "INSERT INTO usuarios (nome, email, senha_hash, salt, perfil, criado_em, oficina_id) VALUES (?, ?, ?, ?, 'Oficina', ?, ?)",
-        [String(nome).trim(), normalizarEmail(email), hashSenha(senha, salt), salt, agora, o.lastInsertRowId]
+        [String(nome).trim(), normalizarEmail(email), hashSenha(senha, salt), salt, agora, oficinaId]
       );
       usuarioId = r.lastInsertRowId;
     });
   } catch (e) {
     const msg = String(e?.message || e);
-    if (msg.includes("oficinas.nome")) throw erroApp("Já existe uma oficina com esse nome.");
+    if (msg.includes("oficinas.")) throw erroApp("Já existe uma oficina com esse nome fantasia.");
     if (msg.includes("usuarios.email")) throw erroApp("Este e-mail já está cadastrado.");
     throw e;
   }

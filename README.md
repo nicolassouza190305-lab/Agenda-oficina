@@ -12,7 +12,7 @@ Aplicativo mobile desenvolvido em **React Native + Expo** para a disciplina de *
 O app conecta **clientes** e **oficinas mecânicas**:
 
 - Cada **oficina** tem o seu cadastro, a sua agenda e os **seus clientes, com exclusividade**: o cliente pertence a uma única oficina e só agenda nela (ex.: o cliente *Nicolas* é da *Oficina GS* e só agenda na GS).
-- O **cliente** cria sua conta escolhendo a sua oficina, cadastra seus veículos, consulta os dias e horários disponíveis **da sua oficina**, **solicita um horário** e acompanha o status do pedido. Também pode pedir uma pré-análise de problemas com um assistente de IA.
+- O **cliente** cria sua conta informando o **nome fantasia** da sua oficina (só com um nome válido ele ganha acesso à agenda), cadastra seus veículos, consulta os dias e horários disponíveis **da sua oficina**, **solicita um horário** e acompanha o status do pedido. Também pode pedir uma pré-análise de problemas com um assistente de IA.
 - A **oficina** (dono) vê só a agenda dos seus clientes e é a única que **confirma ou cancela** esses agendamentos.
 
 O tema visual é *dark-first* com destaque laranja industrial.
@@ -21,7 +21,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 
 | Tela | Perfil | Responsável | O que faz |
 |------|--------|-------------|-----------|
-| **Login / Cadastro** | Todos | Dupla | Entrar (Cliente ou Oficina) com senha verificada no banco. **Cliente** cria conta e **escolhe a sua oficina**; **Oficina** cadastra a própria oficina e a conta do dono |
+| **Login / Cadastro** | Todos | Dupla | Entrar (Cliente ou Oficina) com senha verificada no banco. **Cliente** cria conta informando o **nome fantasia** da sua oficina (precisa existir); **Oficina** cadastra o próprio nome fantasia e a conta do dono |
 | **Meus Veículos** | Cliente | Nicolas Gabriel | Lista **somente os veículos do cliente logado**; cadastro via modal com validação (modelo, placa e ano) |
 | **Horários** | Cliente | Dupla | Escolhe o dia, vê quais horários da **sua oficina** estão disponíveis ou ocupados (sem dados de outros clientes) e toca em **Solicitar horário** (veículo + serviço). Acompanha o status em *Minhas solicitações* |
 | **Agenda** | Oficina | Luiz Eduardo | Agenda por dia **só dos clientes da própria oficina**, filtros por status, **Confirmar / Recusar / Cancelar** (só o dono daquela oficina) |
@@ -31,8 +31,8 @@ O tema visual é *dark-first* com destaque laranja industrial.
 - **Login:** exibe erro se e-mail ou senha estiverem vazios, se a senha estiver errada ou se o perfil escolhido não for o da conta.
 - **Dias de atendimento:** a oficina funciona de **segunda a sexta**; sábado e domingo são fechados (não aparecem na lista de dias e o banco recusa pedidos nesses dias).
 - **Solicitar horário:** exige um horário livre, um dos seus veículos e a descrição do serviço (3 a 120 caracteres); não aceita horário passado nem já ocupado.
-- **Cadastro de cliente:** nome obrigatório, **oficina escolhida**, e-mail válido e único, senha com no mínimo 6 caracteres e confirmação igual.
-- **Cadastro de oficina:** nome da oficina único (sem diferenciar maiúsculas/minúsculas, mínimo 3 letras), nome do responsável, e-mail único e senha com no mínimo 6 caracteres.
+- **Cadastro de cliente:** nome obrigatório, **nome fantasia de uma oficina existente** (aceita variações de maiúsculas, acentos e espaços; nome inexistente é recusado e a conta não é criada), e-mail válido e único, senha com no mínimo 6 caracteres e confirmação igual.
+- **Cadastro de oficina:** nome fantasia único (sem diferenciar maiúsculas, acentos e espaços extras; mínimo 3 letras), nome do responsável, e-mail único e senha com no mínimo 6 caracteres.
 - **Novo veículo:** exige modelo, placa e ano; placa é convertida para maiúsculas; ano e KM aceitam apenas teclado numérico.
 - **Diagnóstico IA:** não envia mensagem vazia; limite de 500 caracteres; tratamento de erro de conexão.
 
@@ -42,7 +42,7 @@ Os dados ficam em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`
 
 | Tabela | Campos principais | Usada em |
 |--------|-------------------|----------|
-| `oficinas` | id, nome (UNIQUE) | Cadastro de oficinas e escolha da oficina pelo cliente |
+| `oficinas` | id, nome (nome fantasia, UNIQUE), nome_busca (chave normalizada, UNIQUE) | Cadastro de oficinas e vínculo do cliente pelo nome fantasia |
 | `usuarios` | id, nome, e-mail (UNIQUE), senha_hash + salt, perfil (Cliente/Oficina), **oficina_id** | Login e cadastro. Todo usuário pertence a **uma** oficina |
 | `sessao` | usuario_id | Mantém o usuário logado ao reabrir o app |
 | `veiculos` | id, **usuario_id**, modelo, placa (UNIQUE), ano, km, cor | Meus Veículos |
@@ -50,7 +50,7 @@ Os dados ficam em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`
 
 - **Senhas** nunca são guardadas em texto: usa-se SHA-256 com salt aleatório (`seguranca.js`).
 - **Cada cliente enxerga só os seus veículos** (`WHERE usuario_id = ?`).
-- **Exclusividade por oficina:** o cliente fica ligado à oficina escolhida no cadastro e **só agenda nela** (a oficina do pedido vem da conta dele, não de dados enviados pelo app). Cada oficina tem a sua agenda: o mesmo dia e horário pode estar livre em uma oficina e ocupado em outra.
+- **Exclusividade por oficina:** o cliente fica ligado à oficina cujo **nome fantasia** informou no cadastro e **só agenda nela**. Não existe lista pública de oficinas: quem não sabe o nome fantasia não cria conta nem acessa a agenda. A busca ignora maiúsculas, acentos e espaços extras (`mecanica  premium` encontra *Mecânica Premium*) (a oficina do pedido vem da conta dele, não de dados enviados pelo app). Cada oficina tem a sua agenda: o mesmo dia e horário pode estar livre em uma oficina e ocupado em outra.
 - **Permissões aplicadas no banco**, não só na interface:
   - só a **Oficina** lista os agendamentos e altera o status (confirmar/cancelar), e **apenas os da própria oficina**: uma oficina não vê nem altera a agenda de outra;
   - o **Cliente** consulta apenas os horários ocupados de um dia **da sua oficina** (`SELECT horario ...`), sem nome, veículo ou serviço de ninguém, e só vê as **suas próprias** solicitações;
@@ -71,7 +71,7 @@ Os dados ficam em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`
 
 Para ver a exclusividade: entre como **Nicolas** (só enxerga e agenda na Oficina GS) e depois como **Rodrigo** (só na Mecânica Premium). O nome da oficina aparece no topo de todas as telas.
 
-Novos clientes criam conta escolhendo a oficina; novas oficinas se cadastram em *Sou Oficina → Cadastrar oficina*. Use **Sair** (canto superior direito) para trocar de conta.
+Novos clientes criam conta digitando o **nome fantasia** da oficina (ex.: `Oficina GS`); novas oficinas se cadastram em *Sou Oficina → Cadastrar oficina*. Use **Sair** (canto superior direito) para trocar de conta.
 
 ## 🖼️ Capturas de tela
 
@@ -150,7 +150,7 @@ O backend requer as variáveis `MONGO_URL`, `DB_NAME` e `EMERGENT_LLM_KEY` no ar
 
 ## 🔜 Próximos passos
 
-- Convite/código da oficina para o cliente se vincular (hoje ele escolhe a oficina numa lista).
+- Convite/código da oficina para o cliente se vincular (hoje basta saber o nome fantasia, que não é segredo).
 - Cliente poder cancelar/remarcar a própria solicitação e receber notificação da resposta da oficina.
 - Sincronizar os dados do SQLite com o backend (hoje o banco é local ao aparelho).
 - Cliente poder solicitar agendamento direto pelo app.

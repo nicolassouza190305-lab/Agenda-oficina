@@ -1,11 +1,12 @@
 // ============================================================
 // LoginScreen - Tela 1 (Login / Cadastro)
 // Desenvolvido em conjunto pela dupla (Nicolas + Luiz)
-// Login real (SQLite). Cliente cria conta escolhendo a SUA oficina (só agenda nela);
-// a Oficina pode cadastrar a própria oficina e administra só os seus clientes.
+// Login real (SQLite). O Cliente cria a conta informando o NOME FANTASIA da sua oficina:
+// só com um nome válido ele ganha acesso à agenda (e só agenda nessa oficina).
+// A Oficina cadastra o próprio nome fantasia e administra só os seus clientes.
 // ============================================================
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -23,7 +24,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "../theme";
 import { useAuth, mensagemDeErro } from "../context/AuthContext";
-import { listarOficinas } from "../database/db";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,10 +37,7 @@ export default function LoginScreen() {
   const [perfil, setPerfil] = useState("Cliente"); // "Cliente" | "Oficina"
   const [modo, setModo] = useState("Entrar"); // "Entrar" | "Cadastrar"
   const [nome, setNome] = useState("");
-  const [nomeOficina, setNomeOficina] = useState("");
-  const [oficinas, setOficinas] = useState([]);
-  const [oficinaId, setOficinaId] = useState(null);
-  const [carregandoOficinas, setCarregandoOficinas] = useState(false);
+  const [nomeFantasia, setNomeFantasia] = useState(""); // nome fantasia da oficina
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
@@ -53,22 +50,9 @@ export default function LoginScreen() {
 
   const trocarPerfil = (novo) => {
     setPerfil(novo);
+    setNomeFantasia("");
     setErro("");
   };
-
-  // Cliente novo escolhe a oficina na lista de oficinas cadastradas
-  useEffect(() => {
-    if (!clienteNovo) return;
-    let ativo = true;
-    setCarregandoOficinas(true);
-    listarOficinas()
-      .then((lista) => ativo && setOficinas(lista))
-      .catch(() => ativo && setErro("Não foi possível carregar as oficinas."))
-      .finally(() => ativo && setCarregandoOficinas(false));
-    return () => {
-      ativo = false;
-    };
-  }, [clienteNovo]);
 
   const enviar = async () => {
     if (!email.trim() || !senha.trim()) {
@@ -76,11 +60,13 @@ export default function LoginScreen() {
       return;
     }
     if (cadastrando) {
-      if (oficinaNova && nomeOficina.trim().length < 3) {
-        return setErro("Informe o nome da oficina (mínimo 3 letras).");
+      if (oficinaNova && nomeFantasia.trim().length < 3) {
+        return setErro("Informe o nome fantasia da oficina (mínimo 3 letras).");
       }
       if (nome.trim().length < 2) return setErro("Informe seu nome.");
-      if (clienteNovo && !oficinaId) return setErro("Escolha a sua oficina.");
+      if (clienteNovo && !nomeFantasia.trim()) {
+        return setErro("Informe o nome fantasia da sua oficina.");
+      }
       if (!EMAIL_RE.test(email.trim())) return setErro("Informe um e-mail válido.");
       if (senha.length < 6) return setErro("A senha deve ter pelo menos 6 caracteres.");
       if (senha !== confirmar) return setErro("As senhas não coincidem.");
@@ -89,8 +75,8 @@ export default function LoginScreen() {
     setEnviando(true);
     try {
       // Ao autenticar, a navegação troca sozinha para as abas do perfil
-      if (oficinaNova) await cadastrarOficina({ nomeOficina, nome, email, senha });
-      else if (clienteNovo) await cadastrar({ nome, email, senha, oficinaId });
+      if (oficinaNova) await cadastrarOficina({ nomeOficina: nomeFantasia, nome, email, senha });
+      else if (clienteNovo) await cadastrar({ nome, email, senha, nomeFantasia });
       else await entrarNaConta(email, senha, perfil);
     } catch (e) {
       setErro(mensagemDeErro(e, "Não foi possível continuar."));
@@ -166,10 +152,10 @@ export default function LoginScreen() {
               {/* Inputs */}
               {oficinaNova ? (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Nome da oficina</Text>
+                  <Text style={styles.label}>Nome fantasia da oficina</Text>
                   <TextInput
-                    value={nomeOficina}
-                    onChangeText={setNomeOficina}
+                    value={nomeFantasia}
+                    onChangeText={setNomeFantasia}
                     placeholder="Ex: Oficina GS"
                     placeholderTextColor={colors.muted}
                     autoCapitalize="words"
@@ -196,29 +182,21 @@ export default function LoginScreen() {
 
               {clienteNovo ? (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Sua oficina</Text>
-                  {oficinas.length === 0 ? (
-                    <Text style={styles.ajuda}>
-                      {carregandoOficinas ? "Carregando oficinas..." : "Nenhuma oficina cadastrada ainda."}
-                    </Text>
-                  ) : (
-                    <View style={styles.chips} testID="oficinas-lista">
-                      {oficinas.map((o) => {
-                        const ativo = o.id === oficinaId;
-                        return (
-                          <Pressable
-                            key={o.id}
-                            onPress={() => setOficinaId(o.id)}
-                            style={[styles.chip, ativo && styles.chipAtivo]}
-                            testID={`oficina-${o.id}`}
-                          >
-                            <Text style={[styles.chipTexto, ativo && styles.chipTextoAtivo]}>{o.nome}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  )}
-                  <Text style={styles.ajuda}>Você só poderá agendar na oficina escolhida.</Text>
+                  <Text style={styles.label}>Nome fantasia da sua oficina</Text>
+                  <TextInput
+                    value={nomeFantasia}
+                    onChangeText={setNomeFantasia}
+                    placeholder="Ex: Oficina GS"
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    style={styles.input}
+                    testID="cadastro-fantasia-input"
+                  />
+                  <Text style={styles.ajuda}>
+                    Digite o nome fantasia da sua oficina. Só com um nome válido você terá acesso
+                    à agenda, e só poderá agendar nela.
+                  </Text>
                 </View>
               ) : null}
 
@@ -292,6 +270,7 @@ export default function LoginScreen() {
               <Pressable
                 onPress={() => {
                   setModo(modo === "Entrar" ? "Cadastrar" : "Entrar");
+                  setNomeFantasia("");
                   setErro("");
                 }}
                 style={styles.alternar}
@@ -441,31 +420,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 0.5,
-  },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  chip: {
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipAtivo: {
-    backgroundColor: colors.brandPrimary,
-    borderColor: colors.brandPrimary,
-  },
-  chipTexto: {
-    color: colors.onSurfaceSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  chipTextoAtivo: {
-    color: colors.onBrandPrimary,
   },
   ajuda: {
     color: colors.muted,
