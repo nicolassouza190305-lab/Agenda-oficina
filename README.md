@@ -50,7 +50,7 @@ Os dados ficam em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`
 
 - **Senhas** nunca são guardadas em texto: usa-se SHA-256 com salt aleatório (`seguranca.js`).
 - **Cada cliente enxerga só os seus veículos** (`WHERE usuario_id = ?`).
-- **Exclusividade por oficina:** o cliente fica ligado à oficina cujo **nome fantasia** informou no cadastro e **só agenda nela**. Não existe lista pública de oficinas: quem não sabe o nome fantasia não cria conta nem acessa a agenda. A busca ignora maiúsculas, acentos e espaços extras (`mecanica  premium` encontra *Mecânica Premium*) (a oficina do pedido vem da conta dele, não de dados enviados pelo app). Cada oficina tem a sua agenda: o mesmo dia e horário pode estar livre em uma oficina e ocupado em outra.
+- **Exclusividade por oficina:** o cliente fica ligado à oficina cujo **nome fantasia** informou no cadastro e **só agenda nela**. Não existe lista pública de oficinas: quem não sabe o nome fantasia não cria conta nem acessa a agenda. A busca ignora maiúsculas, acentos e espaços extras (`mecanica  premium` encontra *Mecânica Premium*). A oficina do pedido vem da conta dele, não de dados enviados pelo app. Cada oficina tem a sua agenda: o mesmo dia e horário pode estar livre em uma oficina e ocupado em outra.
 - **Permissões aplicadas no banco**, não só na interface:
   - só a **Oficina** lista os agendamentos e altera o status (confirmar/cancelar), e **apenas os da própria oficina**: uma oficina não vê nem altera a agenda de outra;
   - o **Cliente** consulta apenas os horários ocupados de um dia **da sua oficina** (`SELECT horario ...`), sem nome, veículo ou serviço de ninguém, e só vê as **suas próprias** solicitações;
