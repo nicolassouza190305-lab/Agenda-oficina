@@ -1,10 +1,11 @@
 // ============================================================
 // LoginScreen - Tela 1 (Login / Cadastro)
 // Desenvolvido em conjunto pela dupla (Nicolas + Luiz)
-// Login real (SQLite): Cliente pode criar conta; Oficina é conta do dono
+// Login real (SQLite). Cliente cria conta escolhendo a SUA oficina (só agenda nela);
+// a Oficina pode cadastrar a própria oficina e administra só os seus clientes.
 // ============================================================
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "../theme";
 import { useAuth, mensagemDeErro } from "../context/AuthContext";
+import { listarOficinas } from "../database/db";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -29,26 +31,44 @@ const HERO_IMAGE =
   "https://images.unsplash.com/photo-1762604462421-fff920b0c418?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbW9kZXJuJTIwZ2FyYWdlJTIwd29ya3Nob3AlMjBpbnRlcmlvciUyMG1vb2R5fGVufDB8fHx8MTc5MTU1NzEyMnww&ixlib=rb-4.1.0&q=85";
 
 export default function LoginScreen() {
-  const { entrar: entrarNaConta, cadastrar } = useAuth();
+  const { entrar: entrarNaConta, cadastrar, cadastrarOficina } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [perfil, setPerfil] = useState("Cliente"); // "Cliente" | "Oficina"
   const [modo, setModo] = useState("Entrar"); // "Entrar" | "Cadastrar"
   const [nome, setNome] = useState("");
+  const [nomeOficina, setNomeOficina] = useState("");
+  const [oficinas, setOficinas] = useState([]);
+  const [oficinaId, setOficinaId] = useState(null);
+  const [carregandoOficinas, setCarregandoOficinas] = useState(false);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  // Oficina é conta do dono: só entra, não cria conta pelo app
-  const cadastrando = modo === "Cadastrar" && perfil === "Cliente";
+  const cadastrando = modo === "Cadastrar";
+  const clienteNovo = cadastrando && perfil === "Cliente";
+  const oficinaNova = cadastrando && perfil === "Oficina";
 
   const trocarPerfil = (novo) => {
     setPerfil(novo);
-    if (novo === "Oficina") setModo("Entrar");
     setErro("");
   };
+
+  // Cliente novo escolhe a oficina na lista de oficinas cadastradas
+  useEffect(() => {
+    if (!clienteNovo) return;
+    let ativo = true;
+    setCarregandoOficinas(true);
+    listarOficinas()
+      .then((lista) => ativo && setOficinas(lista))
+      .catch(() => ativo && setErro("Não foi possível carregar as oficinas."))
+      .finally(() => ativo && setCarregandoOficinas(false));
+    return () => {
+      ativo = false;
+    };
+  }, [clienteNovo]);
 
   const enviar = async () => {
     if (!email.trim() || !senha.trim()) {
@@ -56,7 +76,11 @@ export default function LoginScreen() {
       return;
     }
     if (cadastrando) {
+      if (oficinaNova && nomeOficina.trim().length < 3) {
+        return setErro("Informe o nome da oficina (mínimo 3 letras).");
+      }
       if (nome.trim().length < 2) return setErro("Informe seu nome.");
+      if (clienteNovo && !oficinaId) return setErro("Escolha a sua oficina.");
       if (!EMAIL_RE.test(email.trim())) return setErro("Informe um e-mail válido.");
       if (senha.length < 6) return setErro("A senha deve ter pelo menos 6 caracteres.");
       if (senha !== confirmar) return setErro("As senhas não coincidem.");
@@ -65,7 +89,8 @@ export default function LoginScreen() {
     setEnviando(true);
     try {
       // Ao autenticar, a navegação troca sozinha para as abas do perfil
-      if (cadastrando) await cadastrar({ nome, email, senha });
+      if (oficinaNova) await cadastrarOficina({ nomeOficina, nome, email, senha });
+      else if (clienteNovo) await cadastrar({ nome, email, senha, oficinaId });
       else await entrarNaConta(email, senha, perfil);
     } catch (e) {
       setErro(mensagemDeErro(e, "Não foi possível continuar."));
@@ -139,9 +164,24 @@ export default function LoginScreen() {
               </View>
 
               {/* Inputs */}
+              {oficinaNova ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nome da oficina</Text>
+                  <TextInput
+                    value={nomeOficina}
+                    onChangeText={setNomeOficina}
+                    placeholder="Ex: Oficina GS"
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="words"
+                    style={styles.input}
+                    testID="cadastro-oficina-input"
+                  />
+                </View>
+              ) : null}
+
               {cadastrando ? (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Nome</Text>
+                  <Text style={styles.label}>{oficinaNova ? "Seu nome" : "Nome"}</Text>
                   <TextInput
                     value={nome}
                     onChangeText={setNome}
@@ -151,6 +191,34 @@ export default function LoginScreen() {
                     style={styles.input}
                     testID="cadastro-nome-input"
                   />
+                </View>
+              ) : null}
+
+              {clienteNovo ? (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Sua oficina</Text>
+                  {oficinas.length === 0 ? (
+                    <Text style={styles.ajuda}>
+                      {carregandoOficinas ? "Carregando oficinas..." : "Nenhuma oficina cadastrada ainda."}
+                    </Text>
+                  ) : (
+                    <View style={styles.chips} testID="oficinas-lista">
+                      {oficinas.map((o) => {
+                        const ativo = o.id === oficinaId;
+                        return (
+                          <Pressable
+                            key={o.id}
+                            onPress={() => setOficinaId(o.id)}
+                            style={[styles.chip, ativo && styles.chipAtivo]}
+                            testID={`oficina-${o.id}`}
+                          >
+                            <Text style={[styles.chipTexto, ativo && styles.chipTextoAtivo]}>{o.nome}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                  <Text style={styles.ajuda}>Você só poderá agendar na oficina escolhida.</Text>
                 </View>
               ) : null}
 
@@ -212,35 +280,31 @@ export default function LoginScreen() {
                 <Text style={styles.ctaTexto}>
                   {enviando
                     ? "Aguarde..."
-                    : cadastrando
+                    : oficinaNova
+                    ? "Cadastrar minha oficina"
+                    : clienteNovo
                     ? "Criar conta de Cliente"
                     : `Entrar como ${perfil}`}
                 </Text>
               </Pressable>
 
-              {/* Alternar modo (só Cliente pode criar conta) */}
-              {perfil === "Cliente" ? (
-                <Pressable
-                  onPress={() => {
-                    setModo(modo === "Entrar" ? "Cadastrar" : "Entrar");
-                    setErro("");
-                  }}
-                  style={styles.alternar}
-                  testID="login-toggle-modo"
-                >
-                  <Text style={styles.alternarTexto}>
-                    {modo === "Entrar"
-                      ? "Novo por aqui? Criar conta"
-                      : "Já tem conta? Fazer login"}
-                  </Text>
-                </Pressable>
-              ) : (
-                <View style={styles.alternar}>
-                  <Text style={styles.alternarTexto} testID="login-aviso-oficina">
-                    Acesso restrito ao dono da oficina.
-                  </Text>
-                </View>
-              )}
+              {/* Alternar entre entrar e criar conta */}
+              <Pressable
+                onPress={() => {
+                  setModo(modo === "Entrar" ? "Cadastrar" : "Entrar");
+                  setErro("");
+                }}
+                style={styles.alternar}
+                testID="login-toggle-modo"
+              >
+                <Text style={styles.alternarTexto}>
+                  {modo === "Entrar"
+                    ? perfil === "Oficina"
+                      ? "Sua oficina ainda não está aqui? Cadastrar oficina"
+                      : "Novo por aqui? Criar conta"
+                    : "Já tem conta? Fazer login"}
+                </Text>
+              </Pressable>
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
@@ -377,6 +441,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 0.5,
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  chip: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipAtivo: {
+    backgroundColor: colors.brandPrimary,
+    borderColor: colors.brandPrimary,
+  },
+  chipTexto: {
+    color: colors.onSurfaceSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  chipTextoAtivo: {
+    color: colors.onBrandPrimary,
+  },
+  ajuda: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: spacing.sm,
   },
   alternar: {
     marginTop: spacing.lg,

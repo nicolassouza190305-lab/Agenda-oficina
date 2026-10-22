@@ -9,6 +9,7 @@ import {
   obterUsuarioLogado,
   login,
   cadastrarCliente,
+  cadastrarOficina,
   encerrarSessao,
 } from "../database/db";
 
@@ -38,6 +39,10 @@ export function AuthProvider({ children }) {
     setUsuario(await cadastrarCliente(dados));
   }, []);
 
+  const cadastrarNovaOficina = useCallback(async (dados) => {
+    setUsuario(await cadastrarOficina(dados));
+  }, []);
+
   const sair = useCallback(async () => {
     try {
       await encerrarSessao();
@@ -47,8 +52,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ usuario, carregando, entrar, cadastrar, sair }),
-    [usuario, carregando, entrar, cadastrar, sair]
+    () => ({ usuario, carregando, entrar, cadastrar, cadastrarOficina: cadastrarNovaOficina, sair }),
+    [usuario, carregando, entrar, cadastrar, cadastrarNovaOficina, sair]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

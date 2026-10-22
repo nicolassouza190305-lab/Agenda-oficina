@@ -79,7 +79,7 @@ export default function HorariosScreen() {
     const id = ++pedido.current;
     try {
       const [oc, mine] = await Promise.all([
-        listarHorariosOcupados(dia),
+        listarHorariosOcupados(usuario.id, dia), // só os horários da oficina deste cliente
         listarMeusAgendamentos(usuario.id),
       ]);
       if (id !== pedido.current) return;
@@ -163,7 +163,7 @@ export default function HorariosScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Header
         titulo="Horários"
-        subtitulo="Atendimento de segunda a sexta"
+        subtitulo={`${usuario.oficina_nome} · atendimento de segunda a sexta`}
         testID="horarios-header"
       />
 

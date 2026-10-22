@@ -15,7 +15,9 @@ export default function Header({ titulo, subtitulo, acao, onAcao, testID }) {
       <View style={styles.textos}>
         <View style={styles.marca}>
           <View style={styles.marcaIcone} />
-          <Text style={styles.marcaTexto}>OFICINA</Text>
+          <Text style={styles.marcaTexto} numberOfLines={1} testID="header-oficina">
+            {(usuario?.oficina_nome ?? "OFICINA").toUpperCase()}
+          </Text>
           {usuario ? (
             <Pressable onPress={sair} hitSlop={10} style={styles.sair} testID="btn-sair">
               <Text style={styles.sairTexto} numberOfLines={1}>
@@ -69,7 +71,8 @@ const styles = StyleSheet.create({
   },
   sair: {
     marginLeft: "auto",
-    maxWidth: 160,
+    maxWidth: 130,
+    flexShrink: 0,
   },
   sairTexto: {
     color: colors.muted,
@@ -87,6 +90,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   marcaTexto: {
+    flexShrink: 1,
     color: colors.brandPrimary,
     fontSize: 11,
     letterSpacing: 2,

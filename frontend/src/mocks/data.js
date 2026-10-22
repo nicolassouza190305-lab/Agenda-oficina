@@ -151,10 +151,67 @@ export const HORARIOS_ATENDIMENTO = [
   "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00",
 ];
 
-// Contas iniciais de demonstração (as senhas são gravadas só como hash)
-// - A conta da OFICINA (dono) existe previamente: ninguém se cadastra como oficina pelo app.
-// - Clientes criam conta pela tela de cadastro.
-export const USUARIOS_SEED = [
-  { nome: "Dono da Oficina", email: "dono@oficina.com", senha: "oficina123", perfil: "Oficina" },
-  { nome: "Cliente Demo", email: "cliente@demo.com", senha: "cliente123", perfil: "Cliente" },
+// ------------------------------------------------------------
+// 2ª oficina de exemplo (para demonstrar que cada oficina só enxerga os seus clientes)
+// ------------------------------------------------------------
+export const VEICULOS_PREMIUM_MOCK = [
+  { id: "v5", modelo: "Ford Ranger XLT", placa: "RAN-4G55", ano: 2020, km: 58200, cor: "Preto" },
+  { id: "v6", modelo: "Hyundai Creta", placa: "CRE-7T21", ano: 2023, km: 12400, cor: "Cinza" },
+];
+
+// doCliente: o pedido aparece em "Minhas solicitações" do cliente dessa oficina
+export const AGENDAMENTOS_PREMIUM_MOCK = [
+  {
+    id: "b1",
+    horario: "09:00",
+    cliente: "Rodrigo Alves",
+    veiculo: "Ford Ranger XLT",
+    placa: "RAN-4G55",
+    servico: "Revisão 60.000 km",
+    status: "Confirmado",
+    diaOffset: 0,
+    doCliente: true,
+  },
+  {
+    id: "b2",
+    horario: "11:00",
+    cliente: "Rodrigo Alves",
+    veiculo: "Hyundai Creta",
+    placa: "CRE-7T21",
+    servico: "Troca de pastilhas de freio",
+    status: "Agendado",
+    diaOffset: 0,
+    doCliente: true,
+  },
+  {
+    id: "b3",
+    horario: "14:00",
+    cliente: "Rodrigo Alves",
+    veiculo: "Ford Ranger XLT",
+    placa: "RAN-4G55",
+    servico: "Alinhamento e balanceamento",
+    status: "Agendado",
+    diaOffset: 1,
+    doCliente: true,
+  },
+];
+
+// Oficinas iniciais de demonstração. Cada oficina tem um dono (conta Oficina) e
+// seu cliente (conta Cliente). As senhas são gravadas só como hash.
+// Um cliente pertence a UMA oficina e só agenda nela.
+export const OFICINAS_SEED = [
+  {
+    nome: "Oficina GS",
+    dono: { nome: "Dono da GS", email: "dono@oficina.com", senha: "oficina123" },
+    cliente: { nome: "Nicolas", email: "cliente@demo.com", senha: "cliente123" },
+    veiculos: VEICULOS_MOCK,
+    agendamentos: AGENDAMENTOS_MOCK,
+  },
+  {
+    nome: "Mecânica Premium",
+    dono: { nome: "Dono da Premium", email: "dono@premium.com", senha: "premium123" },
+    cliente: { nome: "Rodrigo Alves", email: "cliente@premium.com", senha: "cliente123" },
+    veiculos: VEICULOS_PREMIUM_MOCK,
+    agendamentos: AGENDAMENTOS_PREMIUM_MOCK,
+  },
 ];

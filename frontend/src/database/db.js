@@ -1,35 +1,34 @@
 // ============================================================
 // db.js - Persistência com SQLite (expo-sqlite)
-// Checkpoint 3 + cadastro de clientes e permissões por perfil
 //
 // Tabelas:
-//   usuarios      contas (Cliente | Oficina), senha com hash + salt
+//   oficinas      cada oficina cadastrada (nome único)
+//   usuarios      contas (Cliente | Oficina), senha com hash + salt.
+//                 TODA conta pertence a uma oficina (oficina_id):
+//                 o dono administra a oficina; o cliente é exclusivo dela
 //   sessao        quem está logado neste aparelho (1 linha)
 //   veiculos      veículos, cada um pertence a um cliente (usuario_id)
-//   agendamentos  serviços marcados (data + horário + status)
+//   agendamentos  serviços marcados, sempre dentro de UMA oficina (oficina_id)
 //
 // Regras de permissão são aplicadas AQUI (não só escondendo botões):
+//   - cada oficina só enxerga e administra a SUA agenda e os SEUS clientes
+//   - o cliente só agenda na oficina a que pertence (não escolhe outra)
 //   - a oficina atende de segunda a sexta (sábado e domingo são fechados)
 //   - só a Oficina lista agendamentos e muda o status (confirmar/cancelar)
 //   - só o Cliente cadastra/consulta veículos (e só os seus)
-//   - o Cliente consulta quais horários estão ocupados (sem dados de ninguém),
-//     solicita um horário livre e vê apenas as suas próprias solicitações
+//   - o Cliente consulta quais horários estão ocupados NA SUA OFICINA (sem dados
+//     de ninguém), solicita um horário livre e vê só as suas solicitações
 // ============================================================
 
 import * as SQLite from "expo-sqlite";
-import {
-  VEICULOS_MOCK,
-  AGENDAMENTOS_MOCK,
-  USUARIOS_SEED,
-  HORARIOS_ATENDIMENTO,
-} from "../mocks/data";
+import { AGENDAMENTOS_MOCK, OFICINAS_SEED, HORARIOS_ATENDIMENTO } from "../mocks/data";
 import { gerarSalt, hashSenha } from "./seguranca";
 import { paraISO, somarDiasUteis, ehDiaUtilISO, hojeISO, horaAgora } from "../utils/datas";
 
 // VERSAO_ESQUEMA: versão atual do banco.
 // VERSAO_MINIMA: abaixo dela as tabelas de exemplo são recriadas; entre as duas
 // o banco é só ajustado (ALTER TABLE), sem perder os dados cadastrados.
-const VERSAO_ESQUEMA = 4;
+const VERSAO_ESQUEMA = 5;
 const VERSAO_MINIMA = 2;
 
 let dbPromise = null;
@@ -72,6 +71,12 @@ async function iniciar() {
   }
 
   await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS oficinas (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      criado_em TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS usuarios (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       nome       TEXT NOT NULL,
@@ -79,7 +84,8 @@ async function iniciar() {
       senha_hash TEXT NOT NULL,
       salt       TEXT NOT NULL,
       perfil     TEXT NOT NULL CHECK (perfil IN ('Cliente', 'Oficina')),
-      criado_em  TEXT NOT NULL
+      criado_em  TEXT NOT NULL,
+      oficina_id INTEGER REFERENCES oficinas(id)
     );
 
     CREATE TABLE IF NOT EXISTS sessao (
@@ -98,40 +104,58 @@ async function iniciar() {
     );
 
     CREATE TABLE IF NOT EXISTS agendamentos (
-      id       TEXT PRIMARY KEY NOT NULL,
-      data     TEXT NOT NULL,
-      horario  TEXT NOT NULL,
-      cliente  TEXT NOT NULL,
-      veiculo  TEXT NOT NULL,
-      placa    TEXT NOT NULL,
-      servico  TEXT NOT NULL,
-      status   TEXT NOT NULL DEFAULT 'Agendado',
-      usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+      id         TEXT PRIMARY KEY NOT NULL,
+      data       TEXT NOT NULL,
+      horario    TEXT NOT NULL,
+      cliente    TEXT NOT NULL,
+      veiculo    TEXT NOT NULL,
+      placa      TEXT NOT NULL,
+      servico    TEXT NOT NULL,
+      status     TEXT NOT NULL DEFAULT 'Agendado',
+      usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      oficina_id INTEGER REFERENCES oficinas(id)
     );
   `);
 
-  // v2 -> v3: agendamentos passam a guardar quem solicitou (cliente)
-  const colunas = await db.getAllAsync("PRAGMA table_info(agendamentos)");
-  if (!colunas.some((c) => c.name === "usuario_id")) {
-    await db.execAsync(
-      "ALTER TABLE agendamentos ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL"
-    );
-  }
+  // Bancos de versões anteriores ganham as colunas novas sem perder dados
+  await garantirColuna(db, "agendamentos", "usuario_id", "INTEGER REFERENCES usuarios(id) ON DELETE SET NULL"); // v3
+  await garantirColuna(db, "usuarios", "oficina_id", "INTEGER REFERENCES oficinas(id)"); // v5
+  await garantirColuna(db, "agendamentos", "oficina_id", "INTEGER REFERENCES oficinas(id)"); // v5
   await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_agendamentos_data ON agendamentos (data, horario);
     CREATE INDEX IF NOT EXISTS idx_agendamentos_usuario ON agendamentos (usuario_id);
-    -- Um horário não pode ter dois agendamentos ativos (evita reserva dupla)
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_agendamento_horario
-      ON agendamentos (data, horario) WHERE status <> 'Cancelado';
+    CREATE INDEX IF NOT EXISTS idx_agendamentos_oficina ON agendamentos (oficina_id, data);
+    CREATE INDEX IF NOT EXISTS idx_usuarios_oficina ON usuarios (oficina_id);
   `);
 
   const { n } = await db.getFirstAsync("SELECT COUNT(*) AS n FROM usuarios");
-  if (n === 0) await popular(db);
-  else if (atual < VERSAO_ESQUEMA) await reagendarExemplos(db);
+  if (n === 0) {
+    await popular(db);
+  } else {
+    // reagendarExemplos precisa do índice único antigo (v3) para detectar colisões
+    if (atual < 4) await reagendarExemplos(db);
+    if (atual < 5) await migrarParaOficinas(db);
+  }
+
+  // Um horário não pode ter dois agendamentos ativos NA MESMA OFICINA (evita reserva dupla).
+  // Substitui o índice antigo, que valia para o app inteiro.
+  await db.execAsync(`
+    DROP INDEX IF EXISTS ux_agendamento_horario;
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_agendamento_oficina_horario
+      ON agendamentos (oficina_id, data, horario) WHERE status <> 'Cancelado';
+  `);
+
   if (atual < VERSAO_ESQUEMA) {
     await db.execAsync(`PRAGMA user_version = ${VERSAO_ESQUEMA}`);
   }
   return db;
+}
+
+async function garantirColuna(db, tabela, coluna, ddl) {
+  const colunas = await db.getAllAsync(`PRAGMA table_info(${tabela})`);
+  if (!colunas.some((c) => c.name === coluna)) {
+    await db.execAsync(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${ddl}`);
+  }
 }
 
 // v3 -> v4 (oficina fecha sábado e domingo): move os agendamentos de EXEMPLO
@@ -170,50 +194,119 @@ async function reagendarExemplos(db) {
   });
 }
 
-// Dados iniciais, tudo ou nada (transação)
+// Cria uma oficina de exemplo com seu dono, seu cliente, veículos e agendamentos
+async function semearOficina(db, def, agora) {
+  const o = await db.runAsync("INSERT INTO oficinas (nome, criado_em) VALUES (?, ?)", [def.nome, agora]);
+  const oficinaId = o.lastInsertRowId;
+
+  const criarUsuario = async (u, perfil) => {
+    const salt = gerarSalt();
+    const r = await db.runAsync(
+      "INSERT INTO usuarios (nome, email, senha_hash, salt, perfil, criado_em, oficina_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [u.nome, u.email, hashSenha(u.senha, salt), salt, perfil, agora, oficinaId]
+    );
+    return r.lastInsertRowId;
+  };
+  await criarUsuario(def.dono, "Oficina");
+  const clienteId = await criarUsuario(def.cliente, "Cliente");
+
+  for (const x of def.veiculos) {
+    await db.runAsync(
+      "INSERT INTO veiculos (id, usuario_id, modelo, placa, ano, km, cor) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [x.id, clienteId, x.modelo, x.placa, x.ano, x.km, x.cor]
+    );
+  }
+  const hoje = new Date();
+  for (const x of def.agendamentos) {
+    await db.runAsync(
+      "INSERT INTO agendamentos (id, data, horario, cliente, veiculo, placa, servico, status, usuario_id, oficina_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        x.id,
+        paraISO(somarDiasUteis(hoje, x.diaOffset ?? 0)),
+        x.horario,
+        x.cliente,
+        x.veiculo,
+        x.placa,
+        x.servico,
+        x.status,
+        x.doCliente ? clienteId : null,
+        oficinaId,
+      ]
+    );
+  }
+}
+
+// Banco novo: cria todas as oficinas de exemplo, tudo ou nada (transação)
 async function popular(db) {
   await db.withTransactionAsync(async () => {
     const agora = new Date().toISOString();
-    const ids = {};
-    for (const u of USUARIOS_SEED) {
-      const salt = gerarSalt();
-      const r = await db.runAsync(
-        "INSERT INTO usuarios (nome, email, senha_hash, salt, perfil, criado_em) VALUES (?, ?, ?, ?, ?, ?)",
-        [u.nome, u.email, hashSenha(u.senha, salt), salt, u.perfil, agora]
-      );
-      ids[u.perfil] = r.lastInsertRowId;
+    for (const def of OFICINAS_SEED) await semearOficina(db, def, agora);
+  });
+}
+
+// v4 -> v5 (oficinas): tudo o que já existia passa a pertencer à "Oficina GS" (contas,
+// clientes, veículos e agenda). Depois cria a 2ª oficina de exemplo, se não houver
+// conflito de e-mail/placa com dados reais do aparelho.
+async function migrarParaOficinas(db) {
+  await db.withTransactionAsync(async () => {
+    const agora = new Date().toISOString();
+    const [gsDef, outraDef] = OFICINAS_SEED;
+
+    let gs = await db.getFirstAsync("SELECT id FROM oficinas ORDER BY id LIMIT 1");
+    if (!gs) {
+      const r = await db.runAsync("INSERT INTO oficinas (nome, criado_em) VALUES (?, ?)", [gsDef.nome, agora]);
+      gs = { id: r.lastInsertRowId };
     }
-    for (const x of VEICULOS_MOCK) {
-      await db.runAsync(
-        "INSERT INTO veiculos (id, usuario_id, modelo, placa, ano, km, cor) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [x.id, ids.Cliente, x.modelo, x.placa, x.ano, x.km, x.cor]
-      );
-    }
-    const hoje = new Date();
-    for (const x of AGENDAMENTOS_MOCK) {
-      await db.runAsync(
-        "INSERT INTO agendamentos (id, data, horario, cliente, veiculo, placa, servico, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [x.id, paraISO(somarDiasUteis(hoje, x.diaOffset ?? 0)), x.horario, x.cliente, x.veiculo, x.placa, x.servico, x.status]
-      );
-    }
+    await db.runAsync("UPDATE usuarios SET oficina_id = ? WHERE oficina_id IS NULL", [gs.id]);
+    await db.runAsync("UPDATE agendamentos SET oficina_id = ? WHERE oficina_id IS NULL", [gs.id]);
+
+    // nomes de exemplo antigos -> nomes coerentes com a oficina GS (só se ninguém os alterou)
+    await db.runAsync("UPDATE usuarios SET nome = ? WHERE email = ? AND nome = 'Dono da Oficina'", [gsDef.dono.nome, gsDef.dono.email]);
+    await db.runAsync("UPDATE usuarios SET nome = ? WHERE email = ? AND nome = 'Cliente Demo'", [gsDef.cliente.nome, gsDef.cliente.email]);
+
+    // o índice único antigo (data, horario) valia para o app todo: sai antes de semear a 2ª oficina
+    await db.execAsync("DROP INDEX IF EXISTS ux_agendamento_horario");
+
+    const jaExiste = await db.getFirstAsync("SELECT id FROM oficinas WHERE nome = ?", [outraDef.nome]);
+    const placas = outraDef.veiculos.map((v) => v.placa);
+    const emails = [outraDef.dono.email, outraDef.cliente.email];
+    const conflito = await db.getFirstAsync(
+      `SELECT (SELECT COUNT(*) FROM usuarios WHERE email IN (${emails.map(() => "?").join(",")}))
+            + (SELECT COUNT(*) FROM veiculos WHERE placa IN (${placas.map(() => "?").join(",")}))
+            + (SELECT COUNT(*) FROM agendamentos WHERE id IN (${outraDef.agendamentos.map(() => "?").join(",")})) AS c`,
+      [...emails, ...placas, ...outraDef.agendamentos.map((a) => a.id)]
+    );
+    if (!jaExiste && conflito.c === 0) await semearOficina(db, outraDef, agora);
   });
 }
 
 // ---------------- Permissões ----------------
 
-// Garante que o usuário existe e tem o perfil exigido (consulta o banco)
-async function exigirPerfil(db, usuarioId, perfil) {
-  const u = await db.getFirstAsync("SELECT perfil FROM usuarios WHERE id = ?", [usuarioId]);
+// Garante que o usuário existe, tem o perfil exigido e pertence a uma oficina.
+// Retorna { id, nome, perfil, oficina_id } lido do banco (nunca confia no app).
+async function exigirUsuario(db, usuarioId, perfil) {
+  const u = await db.getFirstAsync("SELECT id, nome, perfil, oficina_id FROM usuarios WHERE id = ?", [usuarioId]);
   if (!u || u.perfil !== perfil) {
     throw erroApp(`Ação permitida apenas para ${perfil === "Oficina" ? "o dono da oficina" : "clientes"}.`);
   }
+  if (!u.oficina_id) throw erroApp("Sua conta não está vinculada a uma oficina.");
+  return u;
 }
 
 // ---------------- Contas e sessão ----------------
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const normalizarEmail = (e) => String(e || "").trim().toLowerCase();
-const publico = (u) => ({ id: u.id, nome: u.nome, email: u.email, perfil: u.perfil });
+
+// Dados do usuário que o app pode guardar (sem senha), já com o nome da oficina
+async function carregarPublico(db, usuarioId) {
+  return db.getFirstAsync(
+    `SELECT u.id, u.nome, u.email, u.perfil, u.oficina_id, o.nome AS oficina_nome
+       FROM usuarios u LEFT JOIN oficinas o ON o.id = u.oficina_id
+      WHERE u.id = ?`,
+    [usuarioId]
+  );
+}
 
 async function abrirSessao(db, usuarioId) {
   await db.runAsync("INSERT OR REPLACE INTO sessao (id, usuario_id) VALUES (1, ?)", [usuarioId]);
@@ -222,33 +315,73 @@ async function abrirSessao(db, usuarioId) {
 // Usuário que ficou logado neste aparelho (ou null)
 export async function obterUsuarioLogado() {
   const db = await getDb();
-  const u = await db.getFirstAsync(
-    "SELECT u.id, u.nome, u.email, u.perfil FROM sessao s JOIN usuarios u ON u.id = s.usuario_id WHERE s.id = 1"
-  );
-  return u ?? null;
+  const s = await db.getFirstAsync("SELECT usuario_id FROM sessao WHERE id = 1");
+  return s ? (await carregarPublico(db, s.usuario_id)) ?? null : null;
 }
 
-// Cadastro de CLIENTE (o perfil Oficina não pode ser criado pelo app)
-export async function cadastrarCliente({ nome, email, senha }) {
-  const nomeLimpo = String(nome || "").trim();
-  const emailLimpo = normalizarEmail(email);
-  if (nomeLimpo.length < 2) throw erroApp("Informe seu nome.");
-  if (!EMAIL_RE.test(emailLimpo)) throw erroApp("Informe um e-mail válido.");
-  if (String(senha || "").length < 6) throw erroApp("A senha deve ter pelo menos 6 caracteres.");
-
+// Oficinas disponíveis (o cliente escolhe a sua ao criar a conta)
+export async function listarOficinas() {
   const db = await getDb();
+  return db.getAllAsync("SELECT id, nome FROM oficinas ORDER BY nome COLLATE NOCASE");
+}
+
+function validarConta({ nome, email, senha }) {
+  if (String(nome || "").trim().length < 2) throw erroApp("Informe seu nome.");
+  if (!EMAIL_RE.test(normalizarEmail(email))) throw erroApp("Informe um e-mail válido.");
+  if (String(senha || "").length < 6) throw erroApp("A senha deve ter pelo menos 6 caracteres.");
+}
+
+// Cadastro de CLIENTE: ele pertence à oficina escolhida e só poderá agendar nela
+export async function cadastrarCliente({ nome, email, senha, oficinaId }) {
+  validarConta({ nome, email, senha });
+  const db = await getDb();
+  const idOficina = Number(oficinaId);
+  const oficina = Number.isInteger(idOficina)
+    ? await db.getFirstAsync("SELECT id FROM oficinas WHERE id = ?", [idOficina])
+    : null;
+  if (!oficina) throw erroApp("Selecione a sua oficina.");
+
   const salt = gerarSalt();
   try {
     const r = await db.runAsync(
-      "INSERT INTO usuarios (nome, email, senha_hash, salt, perfil, criado_em) VALUES (?, ?, ?, ?, 'Cliente', ?)",
-      [nomeLimpo, emailLimpo, hashSenha(senha, salt), salt, new Date().toISOString()]
+      "INSERT INTO usuarios (nome, email, senha_hash, salt, perfil, criado_em, oficina_id) VALUES (?, ?, ?, ?, 'Cliente', ?, ?)",
+      [String(nome).trim(), normalizarEmail(email), hashSenha(senha, salt), salt, new Date().toISOString(), oficina.id]
     );
     await abrirSessao(db, r.lastInsertRowId);
-    return { id: r.lastInsertRowId, nome: nomeLimpo, email: emailLimpo, perfil: "Cliente" };
+    return carregarPublico(db, r.lastInsertRowId);
   } catch (e) {
     if (String(e?.message || e).includes("UNIQUE")) throw erroApp("Este e-mail já está cadastrado.");
     throw e;
   }
+}
+
+// Cadastro de OFICINA: cria a oficina e a conta do dono (que só administra a própria oficina)
+export async function cadastrarOficina({ nomeOficina, nome, email, senha }) {
+  validarConta({ nome, email, senha });
+  const oficinaLimpa = String(nomeOficina || "").trim();
+  if (oficinaLimpa.length < 3) throw erroApp("Informe o nome da oficina (mínimo 3 letras).");
+
+  const db = await getDb();
+  const salt = gerarSalt();
+  let usuarioId;
+  try {
+    await db.withTransactionAsync(async () => {
+      const agora = new Date().toISOString();
+      const o = await db.runAsync("INSERT INTO oficinas (nome, criado_em) VALUES (?, ?)", [oficinaLimpa, agora]);
+      const r = await db.runAsync(
+        "INSERT INTO usuarios (nome, email, senha_hash, salt, perfil, criado_em, oficina_id) VALUES (?, ?, ?, ?, 'Oficina', ?, ?)",
+        [String(nome).trim(), normalizarEmail(email), hashSenha(senha, salt), salt, agora, o.lastInsertRowId]
+      );
+      usuarioId = r.lastInsertRowId;
+    });
+  } catch (e) {
+    const msg = String(e?.message || e);
+    if (msg.includes("oficinas.nome")) throw erroApp("Já existe uma oficina com esse nome.");
+    if (msg.includes("usuarios.email")) throw erroApp("Este e-mail já está cadastrado.");
+    throw e;
+  }
+  await abrirSessao(db, usuarioId);
+  return carregarPublico(db, usuarioId);
 }
 
 // Login: confere senha (hash) e se o perfil escolhido bate com o da conta
@@ -262,7 +395,7 @@ export async function login({ email, senha, perfil }) {
     throw erroApp(`Esta conta é de ${u.perfil}. Selecione "Sou ${u.perfil}" para entrar.`);
   }
   await abrirSessao(db, u.id);
-  return publico(u);
+  return carregarPublico(db, u.id);
 }
 
 export async function encerrarSessao() {
@@ -275,7 +408,7 @@ export async function encerrarSessao() {
 // Consulta: só os veículos do cliente logado
 export async function listarVeiculos(usuarioId) {
   const db = await getDb();
-  await exigirPerfil(db, usuarioId, "Cliente");
+  await exigirUsuario(db, usuarioId, "Cliente");
   return db.getAllAsync(
     "SELECT id, modelo, placa, ano, km, cor FROM veiculos WHERE usuario_id = ? ORDER BY rowid DESC",
     [usuarioId]
@@ -285,7 +418,7 @@ export async function listarVeiculos(usuarioId) {
 // Cadastro: grava o veículo no nome do cliente. Placa repetida é recusada.
 export async function inserirVeiculo(usuarioId, { modelo, placa, ano, km, cor }) {
   const db = await getDb();
-  await exigirPerfil(db, usuarioId, "Cliente");
+  await exigirUsuario(db, usuarioId, "Cliente");
   const novo = { id: novoId("v"), modelo, placa, ano, km, cor };
   try {
     await db.runAsync(
@@ -299,39 +432,49 @@ export async function inserirVeiculo(usuarioId, { modelo, placa, ano, km, cor })
   return novo;
 }
 
-// ---------------- Agenda ----------------
+// ---------------- Agenda (sempre dentro da oficina do usuário) ----------------
 
-// Oficina: todos os agendamentos, com os dados dos clientes
+// Oficina: todos os agendamentos DA SUA oficina, com os dados dos clientes
 export async function listarAgendamentos(usuarioId) {
   const db = await getDb();
-  await exigirPerfil(db, usuarioId, "Oficina");
-  return db.getAllAsync("SELECT * FROM agendamentos ORDER BY data ASC, horario ASC");
+  const u = await exigirUsuario(db, usuarioId, "Oficina");
+  return db.getAllAsync(
+    "SELECT id, data, horario, cliente, veiculo, placa, servico, status, usuario_id FROM agendamentos WHERE oficina_id = ? ORDER BY data ASC, horario ASC",
+    [u.oficina_id]
+  );
 }
 
-// Oficina: confirmar ou cancelar um agendamento
+// Oficina: confirmar ou cancelar um agendamento DA SUA oficina
 const STATUS_PERMITIDOS = ["Confirmado", "Cancelado"];
 export async function atualizarStatus(usuarioId, id, status) {
   if (!STATUS_PERMITIDOS.includes(status)) throw erroApp("Status inválido.");
   const db = await getDb();
-  await exigirPerfil(db, usuarioId, "Oficina");
-  await db.runAsync("UPDATE agendamentos SET status = ? WHERE id = ?", [status, id]);
+  const u = await exigirUsuario(db, usuarioId, "Oficina");
+  const r = await db.runAsync("UPDATE agendamentos SET status = ? WHERE id = ? AND oficina_id = ?", [
+    status,
+    id,
+    u.oficina_id,
+  ]);
+  if (r.changes === 0) throw erroApp("Agendamento não encontrado nesta oficina.");
 }
 
-// Qualquer usuário logado: SÓ os horários ocupados de um dia (sem nomes nem serviços)
-export async function listarHorariosOcupados(dataISO) {
+// Usuário logado: SÓ os horários ocupados de um dia NA SUA oficina (sem nomes nem serviços)
+export async function listarHorariosOcupados(usuarioId, dataISO) {
   const db = await getDb();
+  const u = await db.getFirstAsync("SELECT oficina_id FROM usuarios WHERE id = ?", [usuarioId]);
+  if (!u || !u.oficina_id) throw erroApp("Faça login novamente.");
   const linhas = await db.getAllAsync(
-    "SELECT horario FROM agendamentos WHERE data = ? AND status <> 'Cancelado'",
-    [dataISO]
+    "SELECT horario FROM agendamentos WHERE oficina_id = ? AND data = ? AND status <> 'Cancelado'",
+    [u.oficina_id, dataISO]
   );
   return linhas.map((l) => l.horario);
 }
 
-// Cliente: solicita um horário livre. Entra como "Agendado" e aguarda a oficina
-// confirmar ou recusar. O banco impede reservar um horário já ocupado.
+// Cliente: solicita um horário livre NA SUA OFICINA (a oficina vem da conta dele, não do app).
+// Entra como "Agendado" e aguarda a oficina confirmar ou recusar.
 export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId, servico }) {
   const db = await getDb();
-  await exigirPerfil(db, usuarioId, "Cliente");
+  const u = await exigirUsuario(db, usuarioId, "Cliente");
 
   const servicoLimpo = String(servico || "").trim();
   if (servicoLimpo.length < 3) throw erroApp("Descreva o serviço desejado.");
@@ -350,7 +493,6 @@ export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId
     [veiculoId, usuarioId]
   );
   if (!v) throw erroApp("Selecione um dos seus veículos.");
-  const u = await db.getFirstAsync("SELECT nome FROM usuarios WHERE id = ?", [usuarioId]);
 
   const novo = {
     id: novoId("a"),
@@ -364,8 +506,8 @@ export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId
   };
   try {
     await db.runAsync(
-      "INSERT INTO agendamentos (id, data, horario, cliente, veiculo, placa, servico, status, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [novo.id, novo.data, novo.horario, novo.cliente, novo.veiculo, novo.placa, novo.servico, novo.status, usuarioId]
+      "INSERT INTO agendamentos (id, data, horario, cliente, veiculo, placa, servico, status, usuario_id, oficina_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [novo.id, novo.data, novo.horario, novo.cliente, novo.veiculo, novo.placa, novo.servico, novo.status, usuarioId, u.oficina_id]
     );
   } catch (e) {
     if (String(e?.message || e).includes("UNIQUE")) {
@@ -379,7 +521,7 @@ export async function solicitarAgendamento(usuarioId, { data, horario, veiculoId
 // Cliente: só as PRÓPRIAS solicitações (de hoje em diante) e o status de cada uma
 export async function listarMeusAgendamentos(usuarioId) {
   const db = await getDb();
-  await exigirPerfil(db, usuarioId, "Cliente");
+  await exigirUsuario(db, usuarioId, "Cliente");
   return db.getAllAsync(
     "SELECT id, data, horario, veiculo, placa, servico, status FROM agendamentos WHERE usuario_id = ? AND data >= ? ORDER BY data ASC, horario ASC",
     [usuarioId, hojeISO()]
