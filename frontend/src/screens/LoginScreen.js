@@ -6,7 +6,7 @@
 // A Oficina cadastra o próprio nome fantasia e administra só os seus clientes.
 // ============================================================
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, radius } from "../theme";
 import { useAuth, mensagemDeErro } from "../context/AuthContext";
+import { buscarOficinasPorPrefixo } from "../database/db";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -46,6 +47,36 @@ export default function LoginScreen() {
 
   const cadastrando = modo === "Cadastrar";
   const clienteNovo = cadastrando && perfil === "Cliente";
+
+  // Autocompletar: sugere oficinas cujo nome começa com o que o cliente digitou.
+  const [sugestoes, setSugestoes] = useState([]);
+  const [escolhida, setEscolhida] = useState(""); // nome já selecionado na lista
+  useEffect(() => {
+    if (!clienteNovo || nomeFantasia === escolhida) {
+      setSugestoes([]);
+      return undefined;
+    }
+    let ativo = true;
+    const t = setTimeout(async () => {
+      try {
+        const achadas = await buscarOficinasPorPrefixo(nomeFantasia);
+        if (ativo) setSugestoes(achadas);
+      } catch (e) {
+        if (ativo) setSugestoes([]);
+      }
+    }, 200);
+    return () => {
+      ativo = false;
+      clearTimeout(t);
+    };
+  }, [nomeFantasia, clienteNovo, escolhida]);
+
+  function escolherOficina(o) {
+    setEscolhida(o.nome);
+    setNomeFantasia(o.nome);
+    setSugestoes([]);
+    Keyboard.dismiss();
+  }
   const oficinaNova = cadastrando && perfil === "Oficina";
 
   const trocarPerfil = (novo) => {
@@ -193,9 +224,23 @@ export default function LoginScreen() {
                     style={styles.input}
                     testID="cadastro-fantasia-input"
                   />
+                  {sugestoes.length > 0 ? (
+                    <View style={styles.sugestoes} testID="cadastro-sugestoes">
+                      {sugestoes.map((o) => (
+                        <Pressable
+                          key={o.id}
+                          onPress={() => escolherOficina(o)}
+                          style={({ pressed }) => [styles.sugestao, pressed && { opacity: 0.6 }]}
+                          testID={`sugestao-${o.id}`}
+                        >
+                          <Text style={styles.sugestaoTexto}>{o.nome}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                   <Text style={styles.ajuda}>
-                    Digite o nome fantasia da sua oficina. Só com um nome válido você terá acesso
-                    à agenda, e só poderá agendar nela.
+                    Digite as primeiras letras e escolha a sua oficina na lista. Só com uma oficina
+                    válida você terá acesso à agenda, e só poderá agendar nela.
                   </Text>
                 </View>
               ) : null}
@@ -420,6 +465,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 0.5,
+  },
+  sugestoes: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
+    overflow: "hidden",
+  },
+  sugestao: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  sugestaoTexto: {
+    color: colors.onSurface,
+    fontSize: 15,
+    fontWeight: "600",
   },
   ajuda: {
     color: colors.muted,

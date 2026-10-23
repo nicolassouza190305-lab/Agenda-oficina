@@ -364,14 +364,53 @@ function validarConta({ nome, email, senha }) {
   if (String(senha || "").length < 6) throw erroApp("A senha deve ter pelo menos 6 caracteres.");
 }
 
+// Busca para o autocomplete do cadastro: oficinas cujo nome fantasia COMEÇA com o texto
+// (ou tem uma palavra que começa com ele), sem diferenciar acento/maiúscula.
+// Exige 2+ letras e devolve no máximo 6 oficinas: não serve para listar todas.
+export async function buscarOficinas(texto) {
+  const chave = normalizarNome(texto);
+  if (chave.length < 2) return [];
+  const p = chave.replace(/[\\%_]/g, "\\$&"); // % e _ viram texto comum no LIKE
+  const db = await getDb();
+  return db.getAllAsync(
+    `SELECT id, nome FROM oficinas
+      WHERE nome_busca LIKE ? ESCAPE '\\' OR nome_busca LIKE ? ESCAPE '\\'
+      ORDER BY CASE WHEN nome_busca LIKE ? ESCAPE '\\' THEN 0 ELSE 1 END, nome_busca
+      LIMIT 6`,
+    [`${p}%`, `% ${p}%`, `${p}%`]
+  );
+}
+
+// Sugestões enquanto o cliente digita o nome fantasia (autocompletar).
+// Só casa pelo INÍCIO do nome, exige 2+ letras e devolve no máximo 5 oficinas (id e nome):
+// não existe jeito de listar todas as oficinas de uma vez.
+const MIN_BUSCA = 2;
+const MAX_SUGESTOES = 5;
+export async function buscarOficinasPorPrefixo(texto) {
+  const chave = normalizarNome(texto);
+  if (chave.length < MIN_BUSCA) return [];
+  const db = await getDb();
+  const padrao = chave.replace(/[\\%_]/g, "\\$&") + "%"; // % e _ digitados valem como letras
+  return db.getAllAsync(
+    "SELECT id, nome FROM oficinas WHERE nome_busca LIKE ? ESCAPE '\\' ORDER BY nome_busca LIMIT ?",
+    [padrao, MAX_SUGESTOES]
+  );
+}
+
 // Cadastro de CLIENTE: ele informa o NOME FANTASIA da oficina. Só se o nome existir a conta é
 // criada, e o cliente passa a pertencer (com exclusividade) a essa oficina e à agenda dela.
-export async function cadastrarCliente({ nome, email, senha, nomeFantasia }) {
+// oficinaId (opcional) vem da sugestão tocada no autocomplete; só vale se o nome bater.
+export async function cadastrarCliente({ nome, email, senha, nomeFantasia, oficinaId }) {
   validarConta({ nome, email, senha });
   const chave = normalizarNome(nomeFantasia);
   if (!chave) throw erroApp("Informe o nome fantasia da sua oficina.");
   const db = await getDb();
-  const oficina = await db.getFirstAsync("SELECT id FROM oficinas WHERE nome_busca = ?", [chave]);
+  let oficina = null;
+  if (oficinaId != null) {
+    const o = await db.getFirstAsync("SELECT id, nome FROM oficinas WHERE id = ?", [Number(oficinaId)]);
+    if (o && normalizarNome(o.nome) === chave) oficina = o;
+  }
+  if (!oficina) oficina = await db.getFirstAsync("SELECT id FROM oficinas WHERE nome_busca = ?", [chave]);
   if (!oficina) {
     throw erroApp("Não encontramos nenhuma oficina com esse nome fantasia. Confira o nome com a sua oficina.");
   }

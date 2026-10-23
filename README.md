@@ -31,7 +31,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 - **Login:** exibe erro se e-mail ou senha estiverem vazios, se a senha estiver errada ou se o perfil escolhido não for o da conta.
 - **Dias de atendimento:** a oficina funciona de **segunda a sexta**; sábado e domingo são fechados (não aparecem na lista de dias e o banco recusa pedidos nesses dias).
 - **Solicitar horário:** exige um horário livre, um dos seus veículos e a descrição do serviço (3 a 120 caracteres); não aceita horário passado nem já ocupado.
-- **Cadastro de cliente:** nome obrigatório, **nome fantasia de uma oficina existente** (aceita variações de maiúsculas, acentos e espaços; nome inexistente é recusado e a conta não é criada), e-mail válido e único, senha com no mínimo 6 caracteres e confirmação igual.
+- **Cadastro de cliente:** nome obrigatório, **oficina existente, escolhida nas sugestões ao digitar o nome fantasia** (aceita variações de maiúsculas, acentos e espaços; nome inexistente é recusado e a conta não é criada), e-mail válido e único, senha com no mínimo 6 caracteres e confirmação igual.
 - **Cadastro de oficina:** nome fantasia único (sem diferenciar maiúsculas, acentos e espaços extras; mínimo 3 letras), nome do responsável, e-mail único e senha com no mínimo 6 caracteres.
 - **Novo veículo:** exige modelo, placa e ano; placa é convertida para maiúsculas; ano e KM aceitam apenas teclado numérico.
 - **Diagnóstico IA:** não envia mensagem vazia; limite de 500 caracteres; tratamento de erro de conexão.
@@ -50,7 +50,7 @@ Os dados ficam em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`
 
 - **Senhas** nunca são guardadas em texto: usa-se SHA-256 com salt aleatório (`seguranca.js`).
 - **Cada cliente enxerga só os seus veículos** (`WHERE usuario_id = ?`).
-- **Exclusividade por oficina:** o cliente fica ligado à oficina cujo **nome fantasia** informou no cadastro e **só agenda nela**. Não existe lista pública de oficinas: quem não sabe o nome fantasia não cria conta nem acessa a agenda. A busca ignora maiúsculas, acentos e espaços extras (`mecanica  premium` encontra *Mecânica Premium*). A oficina do pedido vem da conta dele, não de dados enviados pelo app. Cada oficina tem a sua agenda: o mesmo dia e horário pode estar livre em uma oficina e ocupado em outra.
+- **Exclusividade por oficina:** o cliente fica ligado à oficina cujo **nome fantasia** informou no cadastro e **só agenda nela**. No cadastro, ao digitar as primeiras letras o app **sugere oficinas** cujo nome começa com o texto (ex.: `eron` → *Eron Auto*) e o cliente toca na desejada. Para não expor a lista completa, as sugestões só aparecem com **2+ letras**, casam só pelo **início** do nome e mostram **no máximo 5**; a validação final continua exigindo uma oficina existente. A busca ignora maiúsculas, acentos e espaços extras (`mecanica  premium` encontra *Mecânica Premium*). A oficina do pedido vem da conta dele, não de dados enviados pelo app. Cada oficina tem a sua agenda: o mesmo dia e horário pode estar livre em uma oficina e ocupado em outra.
 - **Permissões aplicadas no banco**, não só na interface:
   - só a **Oficina** lista os agendamentos e altera o status (confirmar/cancelar), e **apenas os da própria oficina**: uma oficina não vê nem altera a agenda de outra;
   - o **Cliente** consulta apenas os horários ocupados de um dia **da sua oficina** (`SELECT horario ...`), sem nome, veículo ou serviço de ninguém, e só vê as **suas próprias** solicitações;
@@ -71,7 +71,7 @@ Os dados ficam em um banco **SQLite** local (`expo-sqlite`, arquivo `oficina.db`
 
 Para ver a exclusividade: entre como **Nicolas** (só enxerga e agenda na Oficina GS) e depois como **Rodrigo** (só na Mecânica Premium). O nome da oficina aparece no topo de todas as telas.
 
-Novos clientes criam conta digitando o **nome fantasia** da oficina (ex.: `Oficina GS`); novas oficinas se cadastram em *Sou Oficina → Cadastrar oficina*. Use **Sair** (canto superior direito) para trocar de conta.
+Novos clientes criam conta digitando as primeiras letras do **nome fantasia** e escolhendo a oficina na lista (ex.: `ofi` → `Oficina GS`); novas oficinas se cadastram em *Sou Oficina → Cadastrar oficina*. Use **Sair** (canto superior direito) para trocar de conta.
 
 ## 🖼️ Capturas de tela
 
@@ -150,7 +150,7 @@ O backend requer as variáveis `MONGO_URL`, `DB_NAME` e `EMERGENT_LLM_KEY` no ar
 
 ## 🔜 Próximos passos
 
-- Convite/código da oficina para o cliente se vincular (hoje basta saber o nome fantasia, que não é segredo).
+- Convite/código da oficina para o cliente se vincular (hoje basta digitar o começo do nome fantasia e escolher na lista).
 - Cliente poder cancelar/remarcar a própria solicitação e receber notificação da resposta da oficina.
 - Sincronizar os dados do SQLite com o backend (hoje o banco é local ao aparelho).
 - Cliente poder solicitar agendamento direto pelo app.
