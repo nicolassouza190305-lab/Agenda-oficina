@@ -137,7 +137,7 @@ backend/
 ```bash
 cd frontend
 yarn install
-npx expo install expo-sqlite   # necessário para a persistência (Checkpoint 3)
+npx expo install expo-sqlite   # garante a versão do SQLite compatível com o SDK 57
 npx expo start
 ```
 
