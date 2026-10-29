@@ -1,7 +1,7 @@
 // ============================================================
 // VeiculosScreen - Tela 2 (Meus Veículos)
 // Desenvolvido por Nicolas Gabriel: Gerenciamento de veículos
-// FlatList + modal de cadastro de novo veículo
+// FlatList + modal de cadastro/edição + exclusão com confirmação (CRUD completo)
 // ============================================================
 
 import React, { useEffect, useState } from "react";
@@ -17,10 +17,11 @@ import {
   Platform,
   Keyboard,
   TouchableWithoutFeedback,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/Header";
-import { listarVeiculos, inserirVeiculo } from "../database/db";
+import { listarVeiculos, inserirVeiculo, atualizarVeiculo, excluirVeiculo } from "../database/db";
 import { useAuth, mensagemDeErro } from "../context/AuthContext";
 import { colors, spacing, radius } from "../theme";
 
@@ -32,6 +33,7 @@ export default function VeiculosScreen() {
   const [veiculos, setVeiculos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
+  const [editandoId, setEditandoId] = useState(null); // null = cadastrando; id = editando
 
   const [modelo, setModelo] = useState("");
   const [placa, setPlaca] = useState("");
@@ -59,23 +61,63 @@ export default function VeiculosScreen() {
     setKm("");
     setCor("");
     setErro("");
+    setEditandoId(null);
   };
 
-  // Cadastro: valida, grava no SQLite (no nome do cliente logado) e atualiza a lista
+  // Abre o modal com os dados do veículo escolhido (Update)
+  const abrirEdicao = (v) => {
+    setEditandoId(v.id);
+    setModelo(v.modelo);
+    setPlaca(v.placa);
+    setAno(String(v.ano));
+    setKm(String(v.km));
+    setCor(v.cor === "—" ? "" : v.cor);
+    setErro("");
+    setModalAberto(true);
+  };
+
+  // Exclusão (Delete): pede confirmação, apaga no SQLite e tira da lista
+  const confirmarExclusao = (v) => {
+    const excluir = async () => {
+      try {
+        await excluirVeiculo(usuario.id, v.id);
+        setVeiculos((lista) => lista.filter((x) => x.id !== v.id));
+      } catch (e) {
+        console.warn("[db] erro ao excluir veículo:", e);
+        Alert.alert("Não foi possível excluir", mensagemDeErro(e, "Tente novamente"));
+      }
+    };
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Excluir ${v.modelo} (${v.placa})?`)) excluir();
+      return;
+    }
+    Alert.alert("Excluir veículo", `Excluir ${v.modelo} (${v.placa})?`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Excluir", style: "destructive", onPress: excluir },
+    ]);
+  };
+
+  // Salvar: cadastra (Create) ou, se estiver editando, atualiza (Update) no SQLite
   const adicionar = async () => {
     if (!modelo.trim() || !placa.trim() || !ano.trim()) {
       setErro("Modelo, placa e ano são obrigatórios.");
       return;
     }
     try {
-      const novo = await inserirVeiculo(usuario.id, {
+      const dados = {
         modelo: modelo.trim(),
         placa: placa.trim().toUpperCase(),
         ano: Number(ano) || 0,
         km: Number(km) || 0,
         cor: cor.trim() || "—",
-      });
-      setVeiculos((lista) => [novo, ...lista]);
+      };
+      if (editandoId) {
+        const salvo = await atualizarVeiculo(usuario.id, editandoId, dados);
+        setVeiculos((lista) => lista.map((x) => (x.id === editandoId ? salvo : x)));
+      } else {
+        const novo = await inserirVeiculo(usuario.id, dados);
+        setVeiculos((lista) => [novo, ...lista]);
+      }
       limparForm();
       setModalAberto(false);
     } catch (e) {
@@ -118,6 +160,23 @@ export default function VeiculosScreen() {
           <Text style={[styles.statValor, { color: colors.success }]}>Ativo</Text>
         </View>
       </View>
+
+      <View style={styles.acoesCard}>
+        <Pressable
+          onPress={() => abrirEdicao(item)}
+          style={({ pressed }) => [styles.btnEditar, pressed && { opacity: 0.7 }]}
+          testID={`editar-${item.id}`}
+        >
+          <Text style={styles.btnEditarTexto}>Editar</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => confirmarExclusao(item)}
+          style={({ pressed }) => [styles.btnExcluir, pressed && { opacity: 0.7 }]}
+          testID={`excluir-${item.id}`}
+        >
+          <Text style={styles.btnExcluirTexto}>Excluir</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -127,7 +186,10 @@ export default function VeiculosScreen() {
         titulo="Meus Veículos"
         subtitulo={`${veiculos.length} veículo${veiculos.length === 1 ? "" : "s"} cadastrado${veiculos.length === 1 ? "" : "s"}`}
         acao="+ Adicionar"
-        onAcao={() => setModalAberto(true)}
+        onAcao={() => {
+          limparForm();
+          setModalAberto(true);
+        }}
         testID="veiculos-header"
       />
 
@@ -152,7 +214,10 @@ export default function VeiculosScreen() {
 
       {/* FAB flutuante */}
       <Pressable
-        onPress={() => setModalAberto(true)}
+        onPress={() => {
+          limparForm();
+          setModalAberto(true);
+        }}
         style={({ pressed }) => [
           styles.fab,
           { bottom: spacing.lg },
@@ -168,7 +233,10 @@ export default function VeiculosScreen() {
         visible={modalAberto}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalAberto(false)}
+        onRequestClose={() => {
+          limparForm();
+          setModalAberto(false);
+        }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={styles.modalFundo}>
@@ -178,8 +246,10 @@ export default function VeiculosScreen() {
             >
               <View style={[styles.modalConteudo, { paddingBottom: insets.bottom + spacing.lg }]}>
                 <View style={styles.modalHandle} />
-                <Text style={styles.modalTitulo}>Novo Veículo</Text>
-                <Text style={styles.modalSub}>Preencha os dados do veículo</Text>
+                <Text style={styles.modalTitulo}>{editandoId ? "Editar Veículo" : "Novo Veículo"}</Text>
+                <Text style={styles.modalSub}>
+                  {editandoId ? "Altere os dados e salve" : "Preencha os dados do veículo"}
+                </Text>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Modelo *</Text>
@@ -270,7 +340,7 @@ export default function VeiculosScreen() {
                     style={({ pressed }) => [styles.btnSalvar, pressed && { opacity: 0.85 }]}
                     testID="modal-salvar"
                   >
-                    <Text style={styles.btnSalvarTexto}>Salvar Veículo</Text>
+                    <Text style={styles.btnSalvarTexto}>{editandoId ? "Salvar Alterações" : "Salvar Veículo"}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -359,6 +429,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     marginTop: 2,
+  },
+  acoesCard: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  btnEditar: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  btnEditarTexto: {
+    color: colors.onSurfaceSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  btnExcluir: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  btnExcluirTexto: {
+    color: colors.error,
+    fontSize: 13,
+    fontWeight: "700",
   },
   vazio: {
     alignItems: "center",

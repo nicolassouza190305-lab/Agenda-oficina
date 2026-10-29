@@ -493,7 +493,7 @@ export async function listarVeiculos(usuarioId) {
 export async function inserirVeiculo(usuarioId, { modelo, placa, ano, km, cor }) {
   const db = await getDb();
   await exigirUsuario(db, usuarioId, "Cliente");
-  const novo = { id: novoId("v"), modelo, placa, ano, km, cor };
+  const novo = { id: novoId("v"), ...validarVeiculo({ modelo, placa, ano, km, cor }) };
   try {
     await db.runAsync(
       "INSERT INTO veiculos (id, usuario_id, modelo, placa, ano, km, cor) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -504,6 +504,68 @@ export async function inserirVeiculo(usuarioId, { modelo, placa, ano, km, cor })
     throw e;
   }
   return novo;
+}
+
+// Valida e limpa os dados de um veículo (usada no cadastro e na edição)
+function validarVeiculo({ modelo, placa, ano, km, cor }) {
+  const limpo = {
+    modelo: String(modelo || "").trim(),
+    placa: String(placa || "").trim().toUpperCase(),
+    ano: Number(ano),
+    km: Number(km) || 0,
+    cor: String(cor || "").trim() || "—",
+  };
+  if (!limpo.modelo || !limpo.placa || !ano) throw erroApp("Modelo, placa e ano são obrigatórios.");
+  if (!Number.isInteger(limpo.ano) || limpo.ano < 1950 || limpo.ano > new Date().getFullYear() + 1) {
+    throw erroApp("Informe um ano válido.");
+  }
+  if (limpo.km < 0) throw erroApp("O KM não pode ser negativo.");
+  return limpo;
+}
+
+// Agendamentos ainda "vivos" (a partir de hoje, não cancelados) de uma placa do cliente
+const AGENDAMENTO_VIVO = "usuario_id = ? AND placa = ? AND status <> 'Cancelado' AND data >= ?";
+
+// Atualização (U): só o dono edita o seu veículo. Placa repetida é recusada.
+// Os agendamentos futuros ativos do veículo acompanham o novo modelo/placa.
+export async function atualizarVeiculo(usuarioId, id, dados) {
+  const db = await getDb();
+  await exigirUsuario(db, usuarioId, "Cliente");
+  const novo = validarVeiculo(dados);
+  const atual = await db.getFirstAsync("SELECT placa FROM veiculos WHERE id = ? AND usuario_id = ?", [id, usuarioId]);
+  if (!atual) throw erroApp("Veículo não encontrado.");
+  try {
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        "UPDATE veiculos SET modelo = ?, placa = ?, ano = ?, km = ?, cor = ? WHERE id = ? AND usuario_id = ?",
+        [novo.modelo, novo.placa, novo.ano, novo.km, novo.cor, id, usuarioId]
+      );
+      await db.runAsync(
+        `UPDATE agendamentos SET veiculo = ?, placa = ? WHERE ${AGENDAMENTO_VIVO}`,
+        [novo.modelo, novo.placa, usuarioId, atual.placa, hojeISO()]
+      );
+    });
+  } catch (e) {
+    if (String(e?.message || e).includes("UNIQUE")) throw erroApp("Já existe um veículo com essa placa.");
+    throw e;
+  }
+  return { id, ...novo };
+}
+
+// Exclusão (D): só o dono exclui o seu veículo, e não se ele tiver agendamento futuro ativo.
+export async function excluirVeiculo(usuarioId, id) {
+  const db = await getDb();
+  await exigirUsuario(db, usuarioId, "Cliente");
+  const v = await db.getFirstAsync("SELECT placa FROM veiculos WHERE id = ? AND usuario_id = ?", [id, usuarioId]);
+  if (!v) throw erroApp("Veículo não encontrado.");
+  const vivo = await db.getFirstAsync(
+    `SELECT COUNT(*) AS n FROM agendamentos WHERE ${AGENDAMENTO_VIVO}`,
+    [usuarioId, v.placa, hojeISO()]
+  );
+  if (vivo.n > 0) {
+    throw erroApp("Este veículo tem agendamento ativo. Cancele o agendamento antes de excluí-lo.");
+  }
+  await db.runAsync("DELETE FROM veiculos WHERE id = ? AND usuario_id = ?", [id, usuarioId]);
 }
 
 // ---------------- Agenda (sempre dentro da oficina do usuário) ----------------

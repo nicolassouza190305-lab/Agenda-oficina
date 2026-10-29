@@ -73,6 +73,17 @@ Para ver a exclusividade: entre como **Nicolas** (só enxerga e agenda na Oficin
 
 Novos clientes criam conta digitando as primeiras letras do **nome fantasia** e escolhendo a oficina na lista (ex.: `ofi` → `Oficina GS`); novas oficinas se cadastram em *Sou Oficina → Cadastrar oficina*. Use **Sair** (canto superior direito) para trocar de conta.
 
+### CRUD de veículos (Avaliação Presencial 2)
+
+| Operação | Tela | Banco |
+|---|---|---|
+| Create | `+ Adicionar` → *Salvar Veículo* | `inserirVeiculo` |
+| Read | lista *Meus Veículos* | `listarVeiculos` |
+| Update | *Editar* (mesmo modal, preenchido) | `atualizarVeiculo` (atualiza também os agendamentos futuros do veículo, em transação) |
+| Delete | *Excluir* (com confirmação) | `excluirVeiculo` (recusa se houver agendamento futuro ativo) |
+
+Todas checam o dono no banco. Guia de explicação e de pequenas alterações: [`docs/ROTEIRO_AVALIACAO.md`](docs/ROTEIRO_AVALIACAO.md).
+
 ## 🖼️ Capturas de tela
 
 | Login | Meus Veículos | Novo Veículo |
