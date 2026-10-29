@@ -2,7 +2,7 @@
 
 Entidade do CRUD: **Veículo** (tela *Meus Veículos*, perfil Cliente). Cada operação tem uma função no banco
 (`frontend/src/database/db.js`) e um trecho na tela (`frontend/src/screens/VeiculosScreen.js`).
-Conta de teste: cadastre um cliente novo (ex.: oficina `Oficina GS`) ou use `nicolas@email.com`.
+Conta de teste: cadastre um cliente novo (ex.: oficina `Oficina GS`) ou use `cliente@demo.com` / `cliente123`.
 
 ## Divisão sugerida (cada um executa e explica a sua)
 
