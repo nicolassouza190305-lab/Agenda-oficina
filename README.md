@@ -31,7 +31,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 |------|--------|-------------|-----------|
 | **Login / Cadastro** | Todos | Dupla | Entrar (Cliente ou Oficina) com senha verificada no banco. **Cliente** cria conta informando o **nome fantasia** da sua oficina (precisa existir); **Oficina** cadastra o próprio nome fantasia e a conta do dono |
 | **Meus Veículos** | Cliente | Nicolas Gabriel | Lista **somente os veículos do cliente logado**; cadastro via modal com validação (modelo, placa e ano) |
-| **Horários** | Cliente | Dupla | Escolhe o dia, vê quais horários da **sua oficina** estão disponíveis ou ocupados (sem dados de outros clientes) e toca em **Solicitar horário** (veículo + serviço). Acompanha o status em *Minhas solicitações* |
+| **Horários** | Cliente | Dupla | Escolhe o dia, vê quais horários da **sua oficina** estão disponíveis ou ocupados (sem dados de outros clientes) e toca em **Solicitar horário** (veículo + serviço). Acompanha o status em *Minhas solicitações* e pode **cancelar** a própria solicitação |
 | **Agenda** | Oficina | Luiz Eduardo | Agenda por dia **só dos clientes da própria oficina**, filtros por status, **Confirmar / Recusar / Cancelar** (só o dono daquela oficina) |
 | **Diagnóstico IA** | Todos | Dupla | Chat do *Mecânico IA*: sugere causas prováveis, serviços da oficina e urgência. **Modo demonstração** (respostas locais, sem internet nem chave) por padrão; com o backend configurado usa o Claude Haiku 4.5 |
 
@@ -186,7 +186,7 @@ Para ligar a IA online é preciso uma chave e o backend rodando (veja *Como exec
 
 ### Testes automatizados (regras de negócio e banco)
 
-Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `db.js` do app sobre um SQLite em memória e um relógio fixo (quarta, 28/10/2026), então o resultado é repetível. Resultado da última execução: **6/6 arquivos, 43 verificações, todas passaram**.
+Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `db.js` do app sobre um SQLite em memória e um relógio fixo (quarta, 28/10/2026), então o resultado é repetível. Resultado da última execução: **7/7 arquivos, 48 verificações, todas passaram**.
 
 | Arquivo | O que verifica | Resultado |
 |---|---|---|
@@ -196,6 +196,7 @@ Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `
 | `04_sugestoes.test.js` | autocompletar por prefixo: mínimo 2 letras, só início do nome, curingas `%` e `_` não vazam, limite de 5, escolha na lista cadastra na oficina certa | Passou (2) |
 | `05_crud_veiculos.test.js` | **C**: cadastro valida ano e km; **U**: edição e propagação aos agendamentos futuros; **D**: exclusão bloqueada com agendamento ativo e liberada depois; outro cliente não edita nem exclui; placa repetida recusada | Passou (6) |
 | `06_diagnostico_ia.test.js` | chat no modo demonstração: as 4 frases de exemplo caem no tópico certo; ignora acento/maiúsculas; todos os tópicos trazem causas, serviço, urgência e pergunta em até 180 palavras; itens de segurança saem como 🔴; mensagem sem assunto pede detalhes e usa o histórico | Passou (5) |
+| `07_cancelar_pedido.test.js` | cliente cancela a própria solicitação (aguardando ou confirmada): horário volta a ficar livre e outro cliente pode pegá-lo; outro cliente e a oficina não usam a função; cancelar duas vezes e serviço em andamento são recusados | Passou (5) |
 
 ### Testes manuais no celular (fluxo principal)
 
@@ -220,11 +221,12 @@ Executar no Expo Go antes de entregar e marcar o resultado:
 | 15 | Fechar o app e reabrir | Continua logado e os dados permanecem | ☐ |
 | 16 | Aba IA: tocar em um exemplo ("barulho ao frear") | Resposta com causas, serviço, urgência 🔴 e pergunta; topo mostra "Modo demonstração" | ☐ |
 | 17 | Aba IA: digitar "oi tudo bem?" | Pede mais detalhes do problema, sem inventar diagnóstico | ☐ |
+| 18 | Horários: em *Minhas solicitações*, tocar em *Cancelar solicitação* e confirmar | Status vira *Cancelado* e o horário volta a ficar livre | ☐ |
 
 ## 📋 Lista de pendências
 
 **Não implementado (fora do escopo desta versão)**
-- Cliente **cancelar ou remarcar** a própria solicitação (hoje só a oficina cancela).
+- Cliente **remarcar** a solicitação (hoje ele pode cancelar e pedir outro horário).
 - **Notificação** ao cliente quando a oficina responde (ele precisa abrir o app).
 - **Recuperar ou trocar a senha**.
 - **Convite/código da oficina** para o vínculo do cliente: hoje basta digitar o começo do nome fantasia e escolher na lista (que mostra no máximo 5 nomes por vez).

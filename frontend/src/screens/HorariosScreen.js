@@ -22,6 +22,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +33,7 @@ import {
   listarMeusAgendamentos,
   listarVeiculos,
   solicitarAgendamento,
+  cancelarMeuAgendamento,
 } from "../database/db";
 import { useAuth, mensagemDeErro } from "../context/AuthContext";
 import { HORARIOS_ATENDIMENTO } from "../mocks/data";
@@ -113,6 +115,27 @@ export default function HorariosScreen() {
     return { hora, estado };
   });
   const livres = slots.filter((s) => s.estado === "livre").length;
+
+  // Cliente cancela a própria solicitação (pede confirmação; o horário volta a ficar livre)
+  const cancelarPedido = (a) => {
+    const cancelar = async () => {
+      try {
+        await cancelarMeuAgendamento(usuario.id, a.id);
+        setAviso("Solicitação cancelada. O horário voltou a ficar livre.");
+        await carregar();
+      } catch (e) {
+        setErro(mensagemDeErro(e, "Não foi possível cancelar."));
+      }
+    };
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("Cancelar esta solicitação?")) cancelar();
+      return;
+    }
+    Alert.alert("Cancelar solicitação", `${descreverDia(a.data)} · ${a.horario}`, [
+      { text: "Manter", style: "cancel" },
+      { text: "Cancelar solicitação", style: "destructive", onPress: cancelar },
+    ]);
+  };
 
   const abrirModal = async () => {
     if (!selecionado) return;
@@ -256,6 +279,15 @@ export default function HorariosScreen() {
               <Text style={styles.pedidoVeiculo}>
                 {a.veiculo} · {a.placa}
               </Text>
+              {a.status === "Agendado" || a.status === "Confirmado" ? (
+                <Pressable
+                  onPress={() => cancelarPedido(a)}
+                  style={({ pressed }) => [styles.pedidoCancelar, pressed && { opacity: 0.7 }]}
+                  testID={`cancelar-pedido-${a.id}`}
+                >
+                  <Text style={styles.pedidoCancelarTexto}>Cancelar solicitação</Text>
+                </Pressable>
+              ) : null}
             </View>
           ))
         )}
@@ -427,6 +459,16 @@ const styles = StyleSheet.create({
   pedidoStatus: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
   pedidoServico: { color: colors.onSurfaceSecondary, fontSize: 14, marginTop: spacing.xs },
   pedidoVeiculo: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  pedidoCancelar: {
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  pedidoCancelarTexto: { color: colors.error, fontSize: 12, fontWeight: "700" },
 
   rodape: {
     paddingHorizontal: spacing.lg,

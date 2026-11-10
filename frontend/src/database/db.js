@@ -663,3 +663,15 @@ export async function listarMeusAgendamentos(usuarioId) {
     [usuarioId, hojeISO()]
   );
 }
+
+// Cliente: cancela uma solicitação SUA (aguardando ou confirmada). O horário volta a ficar livre.
+export async function cancelarMeuAgendamento(usuarioId, id) {
+  const db = await getDb();
+  await exigirUsuario(db, usuarioId, "Cliente");
+  const a = await db.getFirstAsync("SELECT status, data FROM agendamentos WHERE id = ? AND usuario_id = ?", [id, usuarioId]);
+  if (!a) throw erroApp("Agendamento não encontrado.");
+  if (a.status === "Cancelado") throw erroApp("Este agendamento já está cancelado.");
+  if (a.status === "Em Andamento") throw erroApp("Este serviço já está em andamento. Fale com a oficina.");
+  if (a.data < hojeISO()) throw erroApp("Esse agendamento já passou.");
+  await db.runAsync("UPDATE agendamentos SET status = 'Cancelado' WHERE id = ? AND usuario_id = ?", [id, usuarioId]);
+}

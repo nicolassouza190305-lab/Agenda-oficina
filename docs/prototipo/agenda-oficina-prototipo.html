@@ -592,7 +592,7 @@ function telaHorarios() {
     <div class="sec" style="margin-top:0">${esc(descreve(S.dia))}</div><div class="slots">${slots}</div>
     ${S.slot ? `<button class="btn btn-block" style="margin-top:14px" data-act="solicitar">Solicitar horário · ${S.slot}</button>` : `<div class="note">Toque em um horário livre para solicitar. A oficina atende de segunda a sexta.</div>`}
     <div class="sec">Minhas solicitações</div>
-    ${meus.length === 0 ? `<div class="muted">Você ainda não solicitou nenhum horário.</div>` : meus.map((a) => `<div class="pedido"><div class="row"><span class="t">${esc(descreve(a.data))} · ${a.horario}</span><span class="badge ${scls(a.status)}">${esc(ROTULO[a.status] || a.status)}</span></div><div>${esc(a.servico)}</div><div class="muted small">${esc(a.veiculo)} · ${esc(a.placa)}</div></div>`).join("")}</div>`;
+    ${meus.length === 0 ? `<div class="muted">Você ainda não solicitou nenhum horário.</div>` : meus.map((a) => `<div class="pedido"><div class="row"><span class="t">${esc(descreve(a.data))} · ${a.horario}</span><span class="badge ${scls(a.status)}">${esc(ROTULO[a.status] || a.status)}</span></div><div>${esc(a.servico)}</div><div class="muted small">${esc(a.veiculo)} · ${esc(a.placa)}</div>${a.status === "Agendado" || a.status === "Confirmado" ? `<button class="btn-danger btn-sm" style="margin-top:8px" data-act="cancelar-ped" data-v="${a.id}">Cancelar solicitação</button>` : ""}</div>`).join("")}</div>`;
 }
 function sheetSolicitar() {
   const u = usuario(), m = S.modal, vs = DB.veiculos.filter((v) => v.usuario_id === u.id);
@@ -684,6 +684,7 @@ document.addEventListener("click", (e) => {
   }
   else if (act === "solicitar") { S.modal = { tipo: "sol", veic: null, servico: "", erro: "" }; render(); }
   else if (act === "veic-sol") { S.modal.servico = val("s-serv"); S.modal.veic = v; render(); }
+  else if (act === "cancelar-ped") { DB.agendamentos.find((a) => a.id === v).status = "Cancelado"; aviso("Solicitação cancelada. O horário voltou a ficar livre."); }
   else if (act === "confirmar") { DB.agendamentos.find((a) => a.id === v).status = "Confirmado"; aviso("Agendamento confirmado"); }
   else if (act === "recusar") { DB.agendamentos.find((a) => a.id === v).status = "Cancelado"; aviso("Agendamento cancelado"); }
   else if (act === "ex") { enviarIA(v); }
