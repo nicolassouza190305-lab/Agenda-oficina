@@ -3,7 +3,7 @@
 Aplicativo mobile desenvolvido em **React Native + Expo** para a disciplina de **Programação para Dispositivos Móveis em Android**.
 
 **Dupla:** Nicolas Gabriel & Luiz Eduardo
-**Entregas:** Checkpoint 2 – Interface funcional (16/10) · Checkpoint 3 – Persistência (23/10)
+**Entregas:** Checkpoint 2 – Interface funcional (16/10) · Checkpoint 3 – Persistência (23/10) · Avaliação 2 – CRUD (30/10) · **Pré-entrega – Release Candidate (13/11)**
 
 ---
 
@@ -16,6 +16,12 @@ O app conecta **clientes** e **oficinas mecânicas**:
 - A **oficina** (dono) vê só a agenda dos seus clientes e é a única que **confirma ou cancela** esses agendamentos.
 
 O tema visual é *dark-first* com destaque laranja industrial.
+
+## 🚦 Release Candidate (pré-entrega 13/11)
+
+**Estado:** versão quase final. O fluxo principal está implementado e coberto por testes automatizados das regras do banco (tabela de testes abaixo); a interface foi revisada. O que ainda falta está na [lista de pendências](#-lista-de-pendências).
+
+**Fluxo principal:** a oficina se cadastra → o cliente cria conta escolhendo a oficina → cadastra o veículo → solicita um horário → o dono confirma ou recusa → o cliente vê o resultado.
 
 ## ✅ Funcionalidades (Checkpoint 2)
 
@@ -109,6 +115,7 @@ Todas checam o dono no banco. Guia de explicação e de pequenas alterações: [
 frontend/
 ├── index.js                  # registerRootComponent(App)
 ├── App.js                    # providers + navegação
+├── tests/                    # testes do banco (npm run test:db)
 └── src/
     ├── navigation/AppNavigator.js   # Login -> abas por perfil (Cliente / Oficina)
     ├── screens/
@@ -128,22 +135,29 @@ frontend/
     ├── utils/datas.js               # datas e seletor de dias
     ├── mocks/data.js
     └── theme.ts
+docs/                            # capturas de tela e roteiro da avaliação
 backend/
 └── server.py                 # API FastAPI (/api/diagnostico)
 ```
 
 ## ▶️ Como executar
 
+**Requisitos:** Node.js 22.5 ou mais novo, o app **Expo Go** no celular (ou um emulador Android) e celular e computador na mesma rede Wi-Fi.
+
 ```bash
 cd frontend
-yarn install
-npx expo install expo-sqlite   # garante a versão do SQLite compatível com o SDK 57
-npx expo start
+npm install            # ou: yarn install
+npx expo install --fix # alinha as versões dos pacotes ao Expo SDK 57
+npx expo start -c      # -c limpa o cache do Metro
 ```
 
-Abra no **Expo Go** (Android) escaneando o QR Code, ou pressione `a` para o emulador Android.
+Escaneie o QR Code com o Expo Go (Android) ou pressione `a` para o emulador Android. No primeiro uso o banco é criado sozinho com as contas de demonstração (tabela acima).
 
-Para a aba **Diagnóstico IA**, defina `EXPO_PUBLIC_BACKEND_URL` apontando para o backend e rode-o:
+**Problemas comuns no Windows**
+- *"a execução de scripts foi desabilitada"* no PowerShell: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+- *"Unable to resolve module ..."* depois de trocar de versão do projeto: apague a pasta `node_modules` e rode `npm install` e `npx expo start -c` de novo.
+
+**Aba Diagnóstico IA (opcional):** precisa do backend rodando e da variável `EXPO_PUBLIC_BACKEND_URL` apontando para ele. Sem isso o app continua funcionando e a aba mostra "Não consegui falar com a IA agora".
 
 ```bash
 cd backend
@@ -153,15 +167,63 @@ uvicorn server:app --reload --port 8001
 
 O backend requer as variáveis `MONGO_URL`, `DB_NAME` e `EMERGENT_LLM_KEY` no arquivo `backend/.env`.
 
+## 🧪 Tabela de testes
+
+### Testes automatizados (regras de negócio e banco)
+
+Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `db.js` do app sobre um SQLite em memória e um relógio fixo (quarta, 28/10/2026), então o resultado é repetível. Resultado da última execução: **5/5 arquivos, 38 verificações, todas passaram**.
+
+| Arquivo | O que verifica | Resultado |
+|---|---|---|
+| `01_base.test.js` | hash de senha (confere com o `crypto` do Node); login (senha errada, perfil trocado, sessão); cadastro de cliente (validações, e-mail único); permissões (cliente não lista agenda nem confirma); solicitar horário e seus bloqueios (reserva dupla, horário passado, serviço curto/longo, veículo de outro cliente); fim de semana fechado; cancelar libera o horário | Passou (15) |
+| `02_oficinas.test.js` | cada conta ligada à sua oficina; agenda isolada por oficina; uma oficina não confirma/cancela pedido de outra; mesmo horário em oficinas diferentes; cadastro de oficina (nome e e-mail únicos); sessão restaurada | Passou (10) |
+| `03_nome_fantasia.test.js` | vínculo pelo nome fantasia (maiúsculas, acentos, espaços); nome inexistente/parcial/curinga/injeção recusado sem criar conta; nome único; cliente só vê a agenda da própria oficina | Passou (5) |
+| `04_sugestoes.test.js` | autocompletar por prefixo: mínimo 2 letras, só início do nome, curingas `%` e `_` não vazam, limite de 5, escolha na lista cadastra na oficina certa | Passou (2) |
+| `05_crud_veiculos.test.js` | **C**: cadastro valida ano e km; **U**: edição e propagação aos agendamentos futuros; **D**: exclusão bloqueada com agendamento ativo e liberada depois; outro cliente não edita nem exclui; placa repetida recusada | Passou (6) |
+
+### Testes manuais no celular (fluxo principal)
+
+Executar no Expo Go antes de entregar e marcar o resultado:
+
+| # | Passo | Resultado esperado | Resultado |
+|---|---|---|---|
+| 1 | Entrar como `cliente@demo.com` / `cliente123` | Abre as abas Veículos, Horários e IA; topo mostra *OFICINA GS* | ☐ |
+| 2 | Entrar com senha errada | Mensagem de erro, não entra | ☐ |
+| 3 | Cadastrar cliente novo: digitar `ofi` no nome fantasia | Aparece *Oficina GS* na lista; ao tocar, o campo é preenchido | ☐ |
+| 4 | Cadastrar com nome fantasia que não existe | Recusa e não cria a conta | ☐ |
+| 5 | Veículos → `+ Adicionar` → salvar com dados válidos | Veículo aparece no topo da lista | ☐ |
+| 6 | Salvar veículo com placa já existente | Mensagem "Já existe um veículo com essa placa." | ☐ |
+| 7 | Editar um veículo (mudar KM) e salvar | Lista mostra o novo KM | ☐ |
+| 8 | Excluir um veículo sem agendamento | Pede confirmação e remove | ☐ |
+| 9 | Horários: a lista de dias não tem sábado nem domingo | Só dias úteis | ☐ |
+| 10 | Horários: escolher dia/horário livre → *Solicitar horário* (veículo + serviço) | Pedido aparece em *Minhas solicitações* como *Agendado* | ☐ |
+| 11 | Excluir o veículo desse pedido | Recusa: "Este veículo tem agendamento ativo..." | ☐ |
+| 12 | Sair e entrar como `dono@oficina.com` / `oficina123` → Agenda | Pedido aparece; **Confirmar** muda o status | ☐ |
+| 13 | Voltar como cliente | Status do pedido aparece como *Confirmado* | ☐ |
+| 14 | Entrar como `cliente@premium.com` | Vê só a agenda e os veículos da Mecânica Premium | ☐ |
+| 15 | Fechar o app e reabrir | Continua logado e os dados permanecem | ☐ |
+
+## 📋 Lista de pendências
+
+**Não implementado (fora do escopo desta versão)**
+- Cliente **cancelar ou remarcar** a própria solicitação (hoje só a oficina cancela).
+- **Notificação** ao cliente quando a oficina responde (ele precisa abrir o app).
+- **Recuperar ou trocar a senha**.
+- **Convite/código da oficina** para o vínculo do cliente: hoje basta digitar o começo do nome fantasia e escolher na lista (que mostra no máximo 5 nomes por vez).
+- **Sincronização com servidor**: o SQLite é local ao aparelho; clientes e oficina em celulares diferentes não compartilham a agenda.
+
+**Limitações conhecidas**
+- A aba **Diagnóstico IA** depende de backend (FastAPI + MongoDB + chave de IA) que não está hospedado; sem ele mostra uma mensagem de erro amigável.
+- O hash de senha (SHA-256 com salt, em JavaScript) serve para o trabalho acadêmico; em produção a verificação ficaria no servidor com bcrypt/argon2.
+- Os testes automáticos cobrem regras e banco, **não a interface**; a interface é conferida pela tabela manual acima.
+- O teste de migração de bancos de versões antigas foi feito durante o desenvolvimento, mas não está no repositório.
+
+**Para fechar antes da entrega final**
+- Preencher a coluna *Resultado* dos testes manuais após rodar no celular.
+- Atualizar as capturas de tela em `docs/screenshots/` (as atuais são do Checkpoint 2 e não mostram o autocompletar, o nome da oficina no topo nem os botões Editar/Excluir).
+
 ## 👥 Divisão de responsabilidades
 
 - **Nicolas Gabriel:** gerenciamento de veículos (lista, cadastro via modal, persistência).
 - **Luiz Eduardo:** manipulação de status da agenda (confirmar, recusar, filtros, timeline).
 - **Em conjunto:** login, navegação, tema, componente de cabeçalho e diagnóstico com IA.
-
-## 🔜 Próximos passos
-
-- Convite/código da oficina para o cliente se vincular (hoje basta digitar o começo do nome fantasia e escolher na lista).
-- Cliente poder cancelar/remarcar a própria solicitação e receber notificação da resposta da oficina.
-- Sincronizar os dados do SQLite com o backend (hoje o banco é local ao aparelho).
-- Cliente poder solicitar agendamento direto pelo app.
