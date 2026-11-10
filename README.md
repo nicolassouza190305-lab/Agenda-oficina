@@ -23,6 +23,8 @@ O tema visual é *dark-first* com destaque laranja industrial.
 
 **Fluxo principal:** a oficina se cadastra → o cliente cria conta escolhendo a oficina → cadastra o veículo → solicita um horário → o dono confirma ou recusa → o cliente vê o resultado.
 
+**Protótipo navegável:** `docs/prototipo/agenda-oficina-prototipo.html` abre direto no navegador (duplo clique, sem instalar nada) e reproduz as telas e regras do app com dados de exemplo. É uma página à parte para demonstração; o app real é o Expo em `frontend/`.
+
 ## ✅ Funcionalidades (Checkpoint 2)
 
 | Tela | Perfil | Responsável | O que faz |

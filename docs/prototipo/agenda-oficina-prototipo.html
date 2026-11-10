@@ -1,0 +1,770 @@
+<title>Agenda da Oficina</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: palco escuro com o celular ao centro; em tela larga, um painel lateral explica o protótipo. */
+:root {
+  --bg: #0b0b0d;
+  --surface: #111113;
+  --surface2: #1e1e22;
+  --surface3: #2c2c32;
+  --fg: #ffffff;
+  --fg2: #e0e0e0;
+  --muted: #8a8a93;
+  --brand: #e65100;
+  --brand2: #ff3d00;
+  --brand-soft: #3e1e08;
+  --on-brand-soft: #ffb992;
+  --ok: #00e676;
+  --warn: #ffb300;
+  --err: #ff1744;
+  --line: #2c2c32;
+  --line2: #4a4a52;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px;
+  padding-block: 0;
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.stage { height: 100%; display: flex; align-items: center; justify-content: center; gap: 56px; }
+.side { display: none; width: 320px; }
+.side h1 { font-size: 26px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.02em; text-wrap: balance; }
+.side p { color: var(--muted); line-height: 1.55; margin: 0 0 16px; }
+.side h2 { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 24px 0 8px; }
+.side ul { margin: 0; padding-left: 18px; color: var(--fg2); line-height: 1.7; }
+.side .btn-ghost { margin-top: 20px; }
+.phone {
+  position: relative; width: 100%; height: 100%; max-width: 420px; background: var(--surface);
+  display: flex; flex-direction: column; overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (min-width: 900px) {
+  .side { display: block; }
+  .stage { padding-block: 24px; }
+  .phone { max-height: 820px; border-radius: 34px; border: 1px solid var(--line2); box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+}
+/* telas */
+.scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px max(16px, env(safe-area-inset-left, 0px)) 24px max(16px, env(safe-area-inset-right, 0px)); -webkit-overflow-scrolling: touch; }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 12px 16px 14px; background: var(--surface); }
+.brandrow { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.mark { width: 20px; height: 20px; color: var(--brand); flex: none; }
+.brand { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--brand); }
+.who { margin-left: auto; font-size: 12px; color: var(--muted); }
+.who button { background: none; border: 0; color: var(--brand); font-weight: 700; padding: 4px 0 4px 6px; }
+.head h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; line-height: 1.1; }
+.head .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.head .col { flex: 1; min-width: 0; }
+.btn { background: var(--brand); color: #fff; border: 0; border-radius: 10px; padding: 11px 16px; font-weight: 800; letter-spacing: 0.02em; }
+.btn:active { opacity: .85; }
+.btn[disabled] { opacity: .4; cursor: not-allowed; }
+.btn-sm { padding: 9px 12px; font-size: 13px; }
+.btn-ghost { background: transparent; border: 1px solid var(--line2); color: var(--fg2); border-radius: 10px; padding: 10px 14px; font-weight: 700; }
+.btn-danger { background: transparent; border: 1px solid var(--err); color: var(--err); border-radius: 10px; padding: 10px 14px; font-weight: 700; }
+.btn-block { width: 100%; }
+.tabbar { display: flex; border-top: 1px solid var(--line); background: var(--surface); padding-bottom: 4px; }
+.tab { flex: 1; background: none; border: 0; color: var(--muted); padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; }
+.tab svg { width: 22px; height: 22px; }
+.tab[aria-selected="true"] { color: var(--brand); }
+.card { background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modelo { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.placa { background: var(--surface3); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; font-weight: 800; font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
+.hr { height: 1px; background: var(--line); margin: 12px 0; }
+.stats { display: flex; align-items: center; }
+.stat { flex: 1; }
+.stat + .stat { border-left: 1px solid var(--line2); padding-left: 12px; }
+.stat b { display: block; font-size: 14px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.lbl { font-size: 10px; letter-spacing: 0.12em; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.acts { display: flex; gap: 10px; margin-top: 12px; }
+.acts > * { flex: 1; }
+.fab { position: absolute; right: 16px; bottom: 84px; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--brand); color: #fff; font-size: 30px; font-weight: 300; box-shadow: 0 6px 16px rgba(0,0,0,.45); line-height: 1; }
+.empty { text-align: center; padding: 40px 16px; }
+.empty b { display: block; font-size: 18px; margin-bottom: 6px; }
+/* dias e horários */
+.days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; }
+.day { flex: none; min-width: 62px; background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 6px; text-align: center; color: var(--fg2); }
+.day b { display: block; font-size: 13px; }
+.day span { font-size: 11px; color: var(--muted); }
+.day[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.day[aria-pressed="true"] span { color: #ffe0cf; }
+.sec { font-size: 11px; letter-spacing: 0.14em; font-weight: 700; color: var(--muted); margin: 18px 0 10px; text-transform: uppercase; }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.slot { background: var(--surface2); border: 1px solid var(--line2); border-radius: 10px; padding: 11px 4px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.slot small { display: block; font-size: 10px; font-weight: 600; letter-spacing: .04em; margin-top: 2px; color: var(--muted); }
+.slot.livre small { color: var(--ok); }
+.slot.off { opacity: .45; cursor: not-allowed; border-style: dashed; }
+.slot[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.slot[aria-pressed="true"] small { color: #ffe0cf; }
+.pedido { background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.pedido .t { font-weight: 800; }
+.chip { display: inline-block; border: 1px solid var(--line2); background: var(--surface2); border-radius: 999px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; color: var(--fg2); white-space: nowrap; }
+.chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 4px 0 8px; }
+.badge { font-size: 11.5px; font-weight: 800; letter-spacing: .02em; }
+.s-Agendado { color: var(--warn); } .s-Confirmado { color: var(--ok); } .s-Cancelado { color: var(--err); } .s-EmAndamento { color: var(--brand2); }
+.sum { display: flex; gap: 8px; margin-bottom: 12px; }
+.sum div { flex: 1; background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.sum b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+.tl { display: flex; gap: 12px; align-items: baseline; }
+.hora { font-weight: 800; font-size: 16px; font-variant-numeric: tabular-nums; min-width: 48px; }
+/* formulários */
+.fld { margin-bottom: 12px; }
+.fld label { display: block; font-size: 11px; letter-spacing: .12em; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+.in { width: 100%; background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 15px; }
+.in::placeholder { color: var(--muted); }
+textarea.in { resize: none; min-height: 72px; }
+.two { display: flex; gap: 12px; } .two > * { flex: 1; min-width: 0; }
+.err { color: var(--err); font-size: 13px; margin: 4px 0 10px; }
+.note { color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.45; }
+.seg { display: flex; background: var(--surface2); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 16px; }
+.seg button { flex: 1; border: 0; background: none; border-radius: 9px; padding: 10px; font-weight: 700; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+.sugs { border: 1px solid var(--line); border-radius: 10px; background: var(--surface2); margin-top: 4px; overflow: hidden; }
+.sugs button { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 12px; font-weight: 600; font-size: 15px; }
+.sugs button:last-child { border-bottom: 0; }
+.demo { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.demo button { display: flex; width: 100%; justify-content: space-between; gap: 8px; text-align: left; background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-top: 6px; font-size: 12.5px; }
+.demo button span:last-child { color: var(--muted); }
+.logo { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; }
+.logo svg { width: 34px; height: 34px; color: var(--brand); }
+.logo h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; line-height: 1.15; }
+/* modal */
+.ov { position: absolute; inset: 0; background: rgba(0,0,0,.62); display: flex; align-items: flex-end; z-index: 20; }
+.sheet { width: 100%; max-height: 92%; overflow-y: auto; background: var(--surface); border-top: 1px solid var(--line2); border-radius: 18px 18px 0 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+.handle { width: 40px; height: 4px; border-radius: 2px; background: var(--line2); margin: 0 auto 14px; }
+.sheet h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.02em; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: 76px; z-index: 30; background: var(--ok); color: #003314; font-weight: 800; border-radius: 10px; padding: 11px 14px; box-shadow: 0 8px 20px rgba(0,0,0,.4); }
+/* chat */
+.chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.msgs { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.b { display: flex; gap: 8px; align-items: flex-end; }
+.b.u { justify-content: flex-end; }
+.av { width: 26px; height: 26px; border-radius: 50%; background: var(--brand-soft); color: var(--on-brand-soft); font-size: 10px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.bub { max-width: 82%; padding: 10px 12px; border-radius: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.b.a .bub { background: var(--surface2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.b.u .bub { background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+.ex { padding: 0 16px 8px; }
+.ex button { display: block; width: 100%; text-align: left; background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 6px; font-size: 13px; color: var(--fg2); }
+.bar { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); align-items: flex-end; }
+.bar textarea { flex: 1; min-height: 42px; max-height: 96px; }
+@media (prefers-reduced-motion: no-preference) { .sheet { animation: up .22s ease-out; } @keyframes up { from { transform: translateY(24px); opacity: .6; } } }
+</style>
+
+<div class="stage">
+  <aside class="side">
+    <h1>Agenda de Serviços da Oficina</h1>
+    <p>Protótipo navegável do aplicativo. As regras do app (um cliente por oficina, só o dono confirma, dias úteis, horário único por oficina) funcionam aqui; os dados ficam só nesta página e voltam ao início ao recarregar.</p>
+    <h2>Roteiro sugerido</h2>
+    <ul>
+      <li>Entre como cliente e peça um horário</li>
+      <li>Saia, entre como dono da oficina e confirme</li>
+      <li>Volte como cliente e veja o status</li>
+      <li>Cadastre uma conta nova digitando <b>ofi</b> no nome fantasia</li>
+      <li>Teste o chat da aba IA</li>
+    </ul>
+    <button class="btn-ghost" data-act="reset" id="reset-side">Restaurar dados de exemplo</button>
+  </aside>
+  <main class="phone" id="app" aria-live="polite"></main>
+</div>
+
+<script>
+const SEED = {"oficinas":[{"nome":"Oficina GS","dono":{"nome":"Dono da GS","email":"dono@oficina.com","senha":"oficina123"},"cliente":{"nome":"Nicolas","email":"cliente@demo.com","senha":"cliente123"},"veiculos":[{"id":"v1","modelo":"Honda Civic LXR","placa":"ABC-1D23","ano":2019,"km":68450,"cor":"Prata"},{"id":"v2","modelo":"Volkswagen Gol G6","placa":"DEF-4G56","ano":2016,"km":112300,"cor":"Preto"},{"id":"v3","modelo":"Toyota Corolla XEI","placa":"GHI-7J89","ano":2022,"km":24110,"cor":"Branco"},{"id":"v4","modelo":"Fiat Argo Drive","placa":"JKL-0M12","ano":2021,"km":41200,"cor":"Vermelho"}],"agendamentos":[{"id":"a1","horario":"08:00","cliente":"Marcos Souza","veiculo":"Honda Civic LXR","placa":"ABC-1D23","servico":"Troca de óleo e filtro","status":"Agendado","diaOffset":0},{"id":"a2","horario":"09:00","cliente":"Juliana Reis","veiculo":"Volkswagen Gol G6","placa":"DEF-4G56","servico":"Alinhamento e balanceamento","status":"Confirmado","diaOffset":0},{"id":"a3","horario":"10:00","cliente":"Rafael Lima","veiculo":"Toyota Corolla XEI","placa":"GHI-7J89","servico":"Revisão 20.000 km","status":"Em Andamento","diaOffset":0},{"id":"a4","horario":"13:00","cliente":"Fernanda Alves","veiculo":"Fiat Argo Drive","placa":"JKL-0M12","servico":"Troca de pastilhas de freio","status":"Agendado","diaOffset":0},{"id":"a5","horario":"14:00","cliente":"Lucas Pereira","veiculo":"Chevrolet Onix LT","placa":"MNO-3P45","servico":"Diagnóstico eletrônico","status":"Agendado","diaOffset":0},{"id":"a6","horario":"16:00","cliente":"Beatriz Costa","veiculo":"Hyundai HB20","placa":"QRS-6T78","servico":"Troca de amortecedores","status":"Confirmado","diaOffset":0},{"id":"a7","horario":"09:00","cliente":"Ana Martins","veiculo":"Chevrolet Cruze LT","placa":"TUV-9W01","servico":"Troca de correia dentada","status":"Agendado","diaOffset":1},{"id":"a8","horario":"14:00","cliente":"Paulo Ribeiro","veiculo":"Renault Kwid","placa":"XYZ-2A34","servico":"Revisão de freios","status":"Confirmado","diaOffset":1},{"id":"a9","horario":"08:00","cliente":"Carla Nunes","veiculo":"Jeep Renegade","placa":"BCD-5E67","servico":"Troca de óleo e filtros","status":"Agendado","diaOffset":2},{"id":"a10","horario":"15:00","cliente":"Diego Fonseca","veiculo":"Ford Ka SE","placa":"EFG-8H90","servico":"Diagnóstico eletrônico","status":"Agendado","diaOffset":2}]},{"nome":"Mecânica Premium","dono":{"nome":"Dono da Premium","email":"dono@premium.com","senha":"premium123"},"cliente":{"nome":"Rodrigo Alves","email":"cliente@premium.com","senha":"cliente123"},"veiculos":[{"id":"v5","modelo":"Ford Ranger XLT","placa":"RAN-4G55","ano":2020,"km":58200,"cor":"Preto"},{"id":"v6","modelo":"Hyundai Creta","placa":"CRE-7T21","ano":2023,"km":12400,"cor":"Cinza"}],"agendamentos":[{"id":"b1","horario":"09:00","cliente":"Rodrigo Alves","veiculo":"Ford Ranger XLT","placa":"RAN-4G55","servico":"Revisão 60.000 km","status":"Confirmado","diaOffset":0,"doCliente":true},{"id":"b2","horario":"11:00","cliente":"Rodrigo Alves","veiculo":"Hyundai Creta","placa":"CRE-7T21","servico":"Troca de pastilhas de freio","status":"Agendado","diaOffset":0,"doCliente":true},{"id":"b3","horario":"14:00","cliente":"Rodrigo Alves","veiculo":"Ford Ranger XLT","placa":"RAN-4G55","servico":"Alinhamento e balanceamento","status":"Agendado","diaOffset":1,"doCliente":true}]}],"horarios":["08:00","09:00","10:00","11:00","13:00","14:00","15:00","16:00","17:00"]};
+// ============================================================
+// Mecânico IA - MODO DEMONSTRAÇÃO (sem internet e sem chave de IA)
+// Responde com base em uma pequena base de conhecimento local: procura palavras-chave
+// na mensagem e devolve possíveis causas, serviços da oficina e urgência, no mesmo
+// formato pedido ao Claude no backend. NÃO é uma IA generativa: quando houver um
+// backend com chave (EXPO_PUBLIC_BACKEND_URL), o app usa a IA de verdade.
+// ============================================================
+
+const URGENCIA = {
+  baixa: "🟢 pode esperar (agende na próxima revisão)",
+  media: "🟡 agendar logo",
+  alta: "🔴 risco de segurança: evite dirigir e procure a oficina",
+};
+
+// Cada tópico: palavras-chave (sem acento, minúsculas), causas/serviços em pares e uma pergunta
+const TOPICOS = [
+  {
+    id: "freios",
+    titulo: "problema nos freios",
+    palavras: ["freio", "frear", "frenagem", "pedal", "pastilha", "disco"],
+    pares: [
+      ["pastilhas gastas", "troca de pastilhas de freio"],
+      ["discos empenados ou desgastados", "retífica ou troca dos discos"],
+      ["fluido de freio velho ou com ar no sistema", "troca e sangria do fluido de freio"],
+    ],
+    urgencia: "alta",
+    pergunta: "O barulho aparece só ao frear ou o tempo todo? O pedal está mole ou o carro demora a parar?",
+  },
+  {
+    id: "injecao",
+    titulo: "luz de injeção/motor acesa",
+    palavras: ["injecao", "luz do motor", "luz acesa", "check engine", "painel", "falhando", "falha no motor", "engasgando"],
+    pares: [
+      ["velas ou bobinas com desgaste", "troca de velas/bobinas"],
+      ["sensor (sonda lambda, MAP ou temperatura) com defeito", "leitura de códigos com scanner e troca do sensor"],
+      ["bicos injetores sujos", "limpeza de bicos e corpo de borboleta"],
+    ],
+    urgencia: "media",
+    pergunta: "A luz está fixa ou piscando? O motor está falhando ou perdendo força?",
+  },
+  {
+    id: "superaquecimento",
+    titulo: "motor esquentando demais",
+    palavras: ["esquentando", "esquenta", "superaquec", "temperatura", "ferver", "fervendo", "radiador", "arrefecimento"],
+    pares: [
+      ["nível baixo ou vazamento de líquido de arrefecimento", "revisão do sistema de arrefecimento"],
+      ["válvula termostática travada", "troca da válvula termostática"],
+      ["ventoinha ou radiador com defeito", "teste e reparo/troca da ventoinha e do radiador"],
+    ],
+    urgencia: "alta",
+    pergunta: "O ponteiro de temperatura sobe parado, em movimento ou nos dois casos? Há cheiro doce ou vapor?",
+  },
+  {
+    id: "alinhamento",
+    titulo: "carro puxando ou volante vibrando",
+    palavras: ["puxando", "puxa para", "puxa pro", "desalinhado", "alinhamento", "volante tremendo", "volante vibrando", "vibrando", "tremendo", "trepidando", "balanceamento"],
+    pares: [
+      ["alinhamento fora de medida", "alinhamento de direção"],
+      ["rodas desbalanceadas", "balanceamento das rodas"],
+      ["pneu com desgaste irregular ou pressão diferente", "calibragem, rodízio ou troca de pneus"],
+    ],
+    urgencia: "media",
+    pergunta: "A vibração aparece em alguma velocidade específica? O carro puxa para qual lado?",
+  },
+  {
+    id: "suspensao",
+    titulo: "barulho na suspensão",
+    palavras: ["suspensao", "buraco", "batendo", "batida", "amortecedor", "estalo", "toc toc", "pancada", "barulho ao passar"],
+    pares: [
+      ["amortecedores gastos", "troca de amortecedores"],
+      ["buchas ou pivôs com folga", "troca de buchas/pivôs da suspensão"],
+      ["terminal de direção ou barra estabilizadora soltos", "revisão e aperto/troca dos terminais e das barras"],
+    ],
+    urgencia: "media",
+    pergunta: "O barulho acontece em buracos, em curvas ou ao virar o volante parado?",
+  },
+  {
+    id: "bateria",
+    titulo: "dificuldade para ligar o carro",
+    palavras: ["bateria", "nao liga", "nao pega", "partida", "arranque", "motor de partida", "pegar", "morreu", "descarregada", "clique"],
+    pares: [
+      ["bateria fraca ou descarregada", "teste de carga e troca da bateria"],
+      ["terminais da bateria oxidados", "limpeza e aperto dos terminais"],
+      ["alternador ou motor de partida com defeito", "teste do sistema de carga e partida"],
+    ],
+    urgencia: "media",
+    pergunta: "Ao girar a chave, o painel acende e faz clique, ou fica totalmente sem resposta?",
+  },
+  {
+    id: "oleo",
+    titulo: "óleo do motor",
+    palavras: ["oleo", "pressao do oleo", "luz do oleo", "troca de oleo", "vazando oleo", "consumindo oleo"],
+    pares: [
+      ["nível de óleo baixo", "completar o nível e verificar vazamentos"],
+      ["óleo vencido ou filtro saturado", "troca de óleo e filtro"],
+      ["vazamento (junta ou retentor)", "diagnóstico do vazamento e troca da junta/retentor"],
+    ],
+    urgencia: "alta",
+    pergunta: "A luz do óleo acendeu em vermelho? Há manchas no chão onde o carro fica estacionado?",
+  },
+  {
+    id: "fumaca",
+    titulo: "fumaça saindo do escapamento",
+    palavras: ["fumaca", "fumando", "escapamento", "escape"],
+    pares: [
+      ["fumaça azulada: queima de óleo (anéis ou retentores de válvula)", "avaliação de compressão e retentores"],
+      ["fumaça branca densa: líquido de arrefecimento entrando no motor", "teste da junta do cabeçote"],
+      ["fumaça preta: mistura rica (injeção ou filtro de ar sujo)", "limpeza de bicos e troca do filtro de ar"],
+    ],
+    urgencia: "alta",
+    pergunta: "Qual a cor da fumaça e ela aparece só ao ligar o carro ou o tempo todo?",
+  },
+  {
+    id: "ar",
+    titulo: "ar-condicionado com problema",
+    palavras: ["ar condicionado", "ar-condicionado", "ar nao gela", "ar fraco", "nao gela", "gelando", "cheiro no ar"],
+    pares: [
+      ["gás refrigerante baixo", "recarga de gás e teste de vazamento"],
+      ["filtro de cabine sujo", "troca do filtro de cabine e higienização"],
+      ["compressor ou condensador com defeito", "diagnóstico do sistema de ar-condicionado"],
+    ],
+    urgencia: "baixa",
+    pergunta: "O ar sai fraco ou sai quente? Existe cheiro de mofo ao ligar?",
+  },
+  {
+    id: "embreagem",
+    titulo: "embreagem ou câmbio",
+    palavras: ["embreagem", "cambio", "marcha", "patinando", "engatar", "arranhando", "trocar marcha", "troca de marcha"],
+    pares: [
+      ["embreagem desgastada (disco/platô)", "troca do kit de embreagem"],
+      ["fluido ou cabo de acionamento com problema", "revisão do acionamento da embreagem"],
+      ["sincronizadores do câmbio gastos", "avaliação e revisão do câmbio"],
+    ],
+    urgencia: "media",
+    pergunta: "A dificuldade é para engatar alguma marcha específica ou o motor acelera e o carro não acompanha?",
+  },
+  {
+    id: "consumo",
+    titulo: "consumo de combustível alto",
+    palavras: ["consumo", "gastando muito", "bebendo", "combustivel", "gasolina", "faz pouco km", "km por litro"],
+    pares: [
+      ["pneus com pressão baixa", "calibragem e conferência dos pneus"],
+      ["filtro de ar ou velas desgastados", "troca de filtro de ar e velas"],
+      ["sensor de oxigênio ou bicos com problema", "diagnóstico da injeção eletrônica"],
+    ],
+    urgencia: "baixa",
+    pergunta: "Desde quando o consumo aumentou? Mudou algo no uso (mais trânsito, ar ligado, carga)?",
+  },
+  {
+    id: "pneus",
+    titulo: "pneus",
+    palavras: ["pneu", "pneus", "furou", "furado", "careca", "calibragem", "desgaste do pneu"],
+    pares: [
+      ["pressão incorreta", "calibragem dos pneus"],
+      ["desgaste irregular (geometria da suspensão)", "alinhamento e balanceamento"],
+      ["pneu careca ou com bolhas", "troca de pneus"],
+    ],
+    urgencia: "media",
+    pergunta: "O desgaste é mais nas bordas ou no centro? Os pneus têm mais de 5 anos?",
+  },
+  {
+    id: "cheiro",
+    titulo: "cheiro de queimado ou de combustível",
+    palavras: ["cheiro de queimado", "cheiro de gasolina", "cheiro de combustivel", "cheiro de borracha", "cheirando", "queimado"],
+    pares: [
+      ["vazamento de combustível ou de óleo em peça quente", "inspeção completa do motor e das mangueiras"],
+      ["freio ou embreagem superaquecidos", "revisão de freios e embreagem"],
+      ["problema elétrico (fiação ou curto)", "inspeção do sistema elétrico"],
+    ],
+    urgencia: "alta",
+    pergunta: "O cheiro aparece parado, rodando ou ao frear? Há fumaça ou manchas embaixo do carro?",
+  },
+  {
+    id: "revisao",
+    titulo: "revisão preventiva",
+    palavras: ["revisao", "manutencao", "preventiva", "quilometragem", "km rodados", "quando trocar"],
+    pares: [
+      ["óleo e filtros dentro do prazo", "troca de óleo, filtro de óleo, de ar e de combustível"],
+      ["itens de segurança sem checagem", "inspeção de freios, pneus, suspensão e iluminação"],
+      ["correias e fluidos envelhecidos", "verificação da correia dentada e dos fluidos"],
+    ],
+    urgencia: "baixa",
+    pergunta: "Qual a quilometragem atual e quando foi a última revisão?",
+  },
+];
+
+function normalizar(texto) {
+  let t = String(texto || "").toLowerCase();
+  if (typeof t.normalize === "function") t = t.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return t.replace(/\s+/g, " ").trim();
+}
+
+// Procura o tópico com mais palavras-chave encontradas (empate: o que aparece primeiro)
+function acharTopico(texto) {
+  const t = normalizar(texto);
+  if (!t) return null;
+  let melhor = null;
+  let pontos = 0;
+  for (const topico of TOPICOS) {
+    const n = topico.palavras.filter((p) => t.includes(p)).length;
+    if (n > pontos) {
+      melhor = topico;
+      pontos = n;
+    }
+  }
+  return melhor;
+}
+
+const AVISO = "(Resposta do modo demonstração, sem IA online. Confirme o diagnóstico com a oficina.)";
+
+function responderLocal(mensagem, historicoUsuario = []) {
+  // 1) tenta a mensagem atual; 2) se não achar, usa também o que o cliente já disse antes
+  const topico = acharTopico(mensagem) || acharTopico([...historicoUsuario, mensagem].join(" "));
+
+  if (!topico) {
+    return (
+      "Não consegui identificar o problema só com essa descrição. Conte um pouco mais:\n" +
+      "• O que você percebe (barulho, luz no painel, vibração, cheiro, fumaça)?\n" +
+      "• Quando acontece (ao frear, ao ligar, em alta velocidade)?\n" +
+      "• Qual o modelo e a quilometragem do carro?\n\n" +
+      AVISO
+    );
+  }
+
+  const linhas = topico.pares.map(([causa, servico]) => `• ${causa}\n   Serviço: ${servico}`);
+  return (
+    `Pelo que você descreveu, parece ser ${topico.titulo}.\n\n` +
+    `Possíveis causas:\n${linhas.join("\n")}\n\n` +
+    `Urgência: ${URGENCIA[topico.urgencia]}\n\n` +
+    `Para refinar: ${topico.pergunta}\n\n` +
+    `Quer agendar? Vá em Horários e toque em "Solicitar horário".\n\n` +
+    AVISO
+  );
+}
+
+const TOPICOS_DIAGNOSTICO = TOPICOS;
+
+
+const HORARIOS = SEED.horarios;
+const ICON = {
+  wrench: '<svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8 6.2 21l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>',
+  car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16l1.6-5.2A2 2 0 0 1 8.5 9.4h7a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3.5" y="16" width="17" height="3.5" rx="1"/><path d="M7 19.5V21M17 19.5V21"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4A8 8 0 1 1 20 12z"/></svg>',
+};
+const DIAS_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const DIAS_LONGO = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const ROTULO = { Agendado: "Aguardando confirmação", Confirmado: "Confirmado", "Em Andamento": "Em andamento", Cancelado: "Cancelado" };
+
+const p2 = (n) => String(n).padStart(2, "0");
+const iso = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+const addDias = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const util = (d) => d.getDay() !== 0 && d.getDay() !== 6;
+const proxUtil = (d) => { let x = new Date(d); while (!util(x)) x = addDias(x, 1); return x; };
+const somarUteis = (d, n) => { let x = proxUtil(d); for (let i = 0; i < n; i++) x = proxUtil(addDias(x, 1)); return x; };
+const doISO = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const hojeISO = () => iso(new Date());
+const agoraHM = () => { const d = new Date(); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+const descreve = (s) => { const d = doISO(s); return `${DIAS_LONGO[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]}`; };
+function proximosDias(n) {
+  const hoje = new Date(), out = []; let d = proxUtil(hoje);
+  for (let i = 0; i < n; i++) {
+    const k = iso(d);
+    out.push({ iso: k, rotulo: k === iso(hoje) ? "Hoje" : k === iso(addDias(hoje, 1)) ? "Amanhã" : DIAS_CURTO[d.getDay()], sub: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}` });
+    d = proxUtil(addDias(d, 1));
+  }
+  return out;
+}
+const norm = (t) => normalizar(t);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const scls = (s) => "s-" + String(s).replace(/\s/g, "");
+
+/* ---------------- "banco" em memória ---------------- */
+let DB, S, seq = 100;
+function criarBanco() {
+  const db = { oficinas: [], usuarios: [], veiculos: [], agendamentos: [] };
+  const hoje = new Date();
+  SEED.oficinas.forEach((o, i) => {
+    const oid = i + 1;
+    db.oficinas.push({ id: oid, nome: o.nome });
+    const dono = { id: db.usuarios.length + 1, nome: o.dono.nome, email: o.dono.email, senha: o.dono.senha, perfil: "Oficina", oficina_id: oid };
+    const cli = { id: db.usuarios.length + 2, nome: o.cliente.nome, email: o.cliente.email, senha: o.cliente.senha, perfil: "Cliente", oficina_id: oid };
+    db.usuarios.push(dono, cli);
+    o.veiculos.forEach((v) => db.veiculos.push({ ...v, id: "v" + (++seq), usuario_id: cli.id }));
+    o.agendamentos.forEach((a) => db.agendamentos.push({
+      id: "a" + (++seq), data: iso(somarUteis(hoje, a.diaOffset)), horario: a.horario, cliente: a.cliente, veiculo: a.veiculo,
+      placa: a.placa, servico: a.servico, status: a.status, usuario_id: a.doCliente ? cli.id : null, oficina_id: oid,
+    }));
+  });
+  return db;
+}
+const usuario = () => DB.usuarios.find((u) => u.id === S.uid);
+const oficinaDe = (u) => DB.oficinas.find((o) => o.id === u.oficina_id);
+const livre = (oid, data, h) => !DB.agendamentos.some((a) => a.oficina_id === oid && a.data === data && a.horario === h && a.status !== "Cancelado");
+const vivo = (uid, placa) => DB.agendamentos.some((a) => a.usuario_id === uid && a.placa === placa && a.status !== "Cancelado" && a.data >= hojeISO());
+
+function estadoInicial() {
+  return { uid: null, perfil: "Cliente", modo: "Entrar", tab: null, dia: null, slot: null, filtro: "Todos", modal: null, erro: "", toast: "", msgs: null, pensando: false, histIA: [] };
+}
+function reiniciar() { DB = criarBanco(); S = estadoInicial(); render(); }
+
+/* ---------------- regras ---------------- */
+function validarVeiculo(f) {
+  const v = { modelo: f.modelo.trim(), placa: f.placa.trim().toUpperCase(), ano: Number(f.ano), km: Number(f.km) || 0, cor: f.cor.trim() || "—" };
+  if (!v.modelo || !v.placa || !f.ano) throw "Modelo, placa e ano são obrigatórios.";
+  if (!Number.isInteger(v.ano) || v.ano < 1950 || v.ano > new Date().getFullYear() + 1) throw "Informe um ano válido.";
+  if (v.km < 0) throw "O KM não pode ser negativo.";
+  return v;
+}
+function sugestoes(texto) {
+  const k = norm(texto);
+  if (k.length < 2) return [];
+  return DB.oficinas.filter((o) => norm(o.nome).startsWith(k)).sort((a, b) => norm(a.nome).localeCompare(norm(b.nome))).slice(0, 5);
+}
+function conta(f) {
+  const email = f.email.trim().toLowerCase();
+  if (!f.nome.trim() || f.nome.trim().length < 2) throw "Informe seu nome.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw "Informe um e-mail válido.";
+  if (DB.usuarios.some((u) => u.email === email)) throw "Já existe uma conta com esse e-mail.";
+  if (f.senha.length < 6) throw "A senha deve ter no mínimo 6 caracteres.";
+  if (f.senha !== f.confirmar) throw "A confirmação da senha não confere.";
+  return email;
+}
+
+/* ---------------- peças de tela ---------------- */
+function head({ titulo, sub, acao }) {
+  const u = usuario(), of = oficinaDe(u);
+  return `<header class="head"><div class="col">
+    <div class="brandrow">${ICON.wrench}<span class="brand">${esc(of.nome.toUpperCase())}</span><span class="who">${esc(u.nome)} · <button data-act="sair">Sair</button></span></div>
+    <h1>${esc(titulo)}</h1>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}</div>
+    ${acao ? `<button class="btn btn-sm" data-act="${acao.act}">${esc(acao.rotulo)}</button>` : ""}</header>`;
+}
+function tabbar(tabs) {
+  return `<nav class="tabbar" role="tablist">${tabs.map((t) => `<button class="tab" role="tab" aria-selected="${S.tab === t.id}" data-act="tab" data-v="${t.id}">${ICON[t.icon]}${t.nome}</button>`).join("")}</nav>`;
+}
+function diasSel() {
+  return `<div class="days">${proximosDias(7).map((d) => `<button class="day" aria-pressed="${S.dia === d.iso}" data-act="dia" data-v="${d.iso}"><b>${d.rotulo}</b><span>${d.sub}</span></button>`).join("")}</div>`;
+}
+function sheet(inner) { return `<div class="ov" data-act="fechar-fundo"><div class="sheet" role="dialog" aria-modal="true"><div class="handle"></div>${inner}</div></div>`; }
+
+/* ---------------- telas ---------------- */
+function telaLogin() {
+  const cli = S.perfil === "Cliente", cad = S.modo === "Cadastrar";
+  const demo = [];
+  SEED.oficinas.forEach((o) => { demo.push([o.nome, "Dono", o.dono.email, o.dono.senha, "Oficina"], [o.nome, "Cliente", o.cliente.email, o.cliente.senha, "Cliente"]); });
+  return `<div class="scroll">
+    <div class="logo">${ICON.wrench}<h1>Agenda de Serviços<br>da Oficina</h1></div>
+    <p class="muted" style="margin:6px 0 16px">${cad ? "Crie sua conta" : "Entre para continuar"}</p>
+    <div class="seg"><button data-act="perfil" data-v="Cliente" aria-pressed="${cli}">Sou Cliente</button><button data-act="perfil" data-v="Oficina" aria-pressed="${!cli}">Sou Oficina</button></div>
+    <form id="f-login" autocomplete="off">
+      ${cad && !cli ? `<div class="fld"><label for="l-fantasia">Nome fantasia da oficina</label><input class="in" id="l-fantasia" placeholder="Ex: Auto Center Silva"></div>` : ""}
+      ${cad ? `<div class="fld"><label for="l-nome">${cli ? "Nome" : "Seu nome"}</label><input class="in" id="l-nome" placeholder="Seu nome completo"></div>` : ""}
+      ${cad && cli ? `<div class="fld"><label for="l-fantasia">Nome fantasia da sua oficina</label><input class="in" id="l-fantasia" placeholder="Ex: Oficina GS" autocapitalize="words"><div id="sugs"></div><div class="note">Digite as primeiras letras e escolha a sua oficina na lista. Só com uma oficina válida você terá acesso à agenda, e só poderá agendar nela.</div></div>` : ""}
+      <div class="fld"><label for="l-email">Email</label><input class="in" id="l-email" type="email" placeholder="voce@email.com" autocapitalize="off"></div>
+      <div class="fld"><label for="l-senha">Senha</label><input class="in" id="l-senha" type="password" placeholder="Mínimo 6 caracteres"></div>
+      ${cad ? `<div class="fld"><label for="l-conf">Confirmar senha</label><input class="in" id="l-conf" type="password"></div>` : ""}
+      ${S.erro ? `<div class="err" role="alert">${esc(S.erro)}</div>` : ""}
+      <button class="btn btn-block" type="submit">${cad ? (cli ? "Criar conta" : "Cadastrar oficina") : "Entrar"}</button>
+    </form>
+    <button class="btn-ghost btn-block" style="margin-top:12px;border:0;color:var(--muted)" data-act="modo">${cad ? "Já tenho conta · Entrar" : (cli ? "Não tenho conta · Cadastrar" : "Cadastrar oficina")}</button>
+    ${cad ? "" : `<div class="demo"><div class="lbl">Contas de demonstração (toque para preencher)</div>${demo.map((d, i) => `<button type="button" data-act="demo" data-v="${i}"><span><b>${esc(d[0])}</b> · ${d[1]}</span><span>${esc(d[2])}</span></button>`).join("")}</div>`}
+  </div>`;
+}
+
+function telaVeiculos() {
+  const u = usuario(), lista = DB.veiculos.filter((v) => v.usuario_id === u.id).slice().reverse();
+  const n = lista.length;
+  return head({ titulo: "Meus Veículos", sub: `${n} veículo${n === 1 ? "" : "s"} cadastrado${n === 1 ? "" : "s"}`, acao: { act: "novo-veic", rotulo: "+ Adicionar" } }) +
+    `<div class="scroll">${n === 0 ? `<div class="empty"><b>Nenhum veículo cadastrado</b><span class="muted">Toque em "+ Adicionar" para registrar seu primeiro veículo.</span></div>` : lista.map((v) => `
+    <div class="card"><div class="row"><div style="min-width:0"><div class="modelo">${esc(v.modelo)}</div><div class="muted small">${esc(v.cor)}</div></div><span class="placa">${esc(v.placa)}</span></div>
+    <div class="hr"></div><div class="stats"><div class="stat"><span class="lbl">Ano</span><b>${v.ano}</b></div><div class="stat"><span class="lbl">KM</span><b>${Number(v.km).toLocaleString("pt-BR")}</b></div><div class="stat"><span class="lbl">Status</span><b style="color:var(--ok)">Ativo</b></div></div>
+    <div class="acts"><button class="btn-ghost" data-act="edit-veic" data-v="${v.id}">Editar</button><button class="btn-danger" data-act="del-veic" data-v="${v.id}">Excluir</button></div></div>`).join("")}</div>
+    <button class="fab" aria-label="Adicionar veículo" data-act="novo-veic">+</button>`;
+}
+function sheetVeiculo() {
+  const m = S.modal, v = m.id ? DB.veiculos.find((x) => x.id === m.id) : { modelo: "", placa: "", ano: "", km: "", cor: "" };
+  return sheet(`<h2>${m.id ? "Editar Veículo" : "Novo Veículo"}</h2><div class="muted small" style="margin-bottom:14px">${m.id ? "Altere os dados e salve" : "Preencha os dados do veículo"}</div>
+    <form id="f-veic" autocomplete="off">
+    <div class="fld"><label for="v-modelo">Modelo *</label><input class="in" id="v-modelo" value="${esc(v.modelo)}" placeholder="Ex: Honda Civic LXR"></div>
+    <div class="two"><div class="fld"><label for="v-placa">Placa *</label><input class="in" id="v-placa" value="${esc(v.placa)}" placeholder="ABC-1D23" autocapitalize="characters"></div>
+    <div class="fld" style="max-width:110px"><label for="v-ano">Ano *</label><input class="in" id="v-ano" inputmode="numeric" value="${esc(v.ano)}" placeholder="2024"></div></div>
+    <div class="two"><div class="fld"><label for="v-km">KM atual</label><input class="in" id="v-km" inputmode="numeric" value="${esc(v.km)}" placeholder="25000"></div>
+    <div class="fld"><label for="v-cor">Cor</label><input class="in" id="v-cor" value="${esc(v.cor === "—" ? "" : v.cor)}" placeholder="Prata"></div></div>
+    ${m.erro ? `<div class="err" role="alert">${esc(m.erro)}</div>` : ""}
+    <div class="acts"><button type="button" class="btn-ghost" data-act="fechar">Cancelar</button><button class="btn" type="submit" style="flex:1.3">${m.id ? "Salvar Alterações" : "Salvar Veículo"}</button></div></form>`);
+}
+function sheetExcluir() {
+  const m = S.modal, v = DB.veiculos.find((x) => x.id === m.id);
+  return sheet(`<h2>Excluir veículo</h2><p class="muted">Excluir <b style="color:var(--fg)">${esc(v.modelo)} (${esc(v.placa)})</b>?</p>
+    ${m.erro ? `<div class="err" role="alert">${esc(m.erro)}</div>` : ""}
+    <div class="acts"><button class="btn-ghost" data-act="fechar">Cancelar</button><button class="btn-danger" data-act="conf-del" data-v="${v.id}">Excluir</button></div>`);
+}
+
+function telaHorarios() {
+  const u = usuario(), of = oficinaDe(u), dias = proximosDias(7);
+  const hoje = hojeISO(), agora = agoraHM();
+  // abre no primeiro dia que ainda tem horário (depois do expediente, "Hoje" já passou inteiro)
+  if (!S.dia) S.dia = (dias.find((d) => d.iso !== hoje || HORARIOS.some((h) => h > agora)) || dias[0]).iso;
+  const slots = HORARIOS.map((h) => {
+    const passou = S.dia === hoje && h <= agora, ocup = !livre(of.id, S.dia, h);
+    const off = passou || ocup;
+    return `<button class="slot ${off ? "off" : "livre"}" ${off ? "disabled" : ""} aria-pressed="${S.slot === h}" data-act="slot" data-v="${h}">${h}<small>${ocup ? "Ocupado" : passou ? "Passou" : "Livre"}</small></button>`;
+  }).join("");
+  const meus = DB.agendamentos.filter((a) => a.usuario_id === u.id && a.data >= hoje).sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
+  return head({ titulo: "Horários", sub: "Dias e horários disponíveis na sua oficina" }) +
+    `<div class="scroll">${diasSel()}
+    <div class="sec" style="margin-top:0">${esc(descreve(S.dia))}</div><div class="slots">${slots}</div>
+    ${S.slot ? `<button class="btn btn-block" style="margin-top:14px" data-act="solicitar">Solicitar horário · ${S.slot}</button>` : `<div class="note">Toque em um horário livre para solicitar. A oficina atende de segunda a sexta.</div>`}
+    <div class="sec">Minhas solicitações</div>
+    ${meus.length === 0 ? `<div class="muted">Você ainda não solicitou nenhum horário.</div>` : meus.map((a) => `<div class="pedido"><div class="row"><span class="t">${esc(descreve(a.data))} · ${a.horario}</span><span class="badge ${scls(a.status)}">${esc(ROTULO[a.status] || a.status)}</span></div><div>${esc(a.servico)}</div><div class="muted small">${esc(a.veiculo)} · ${esc(a.placa)}</div></div>`).join("")}</div>`;
+}
+function sheetSolicitar() {
+  const u = usuario(), m = S.modal, vs = DB.veiculos.filter((v) => v.usuario_id === u.id);
+  if (vs.length === 0) return sheet(`<h2>Solicitar horário</h2><p class="muted">Cadastre um veículo na aba Veículos antes de solicitar um horário.</p><div class="acts"><button class="btn" data-act="fechar">Entendi</button></div>`);
+  if (!m.veic) m.veic = vs[0].id;
+  return sheet(`<h2>Solicitar horário</h2><div class="muted small" style="margin-bottom:14px">${esc(descreve(S.dia))} · ${S.slot}</div>
+    <form id="f-sol"><div class="lbl">Veículo</div><div class="chips">${vs.map((v) => `<button type="button" class="chip" aria-pressed="${m.veic === v.id}" data-act="veic-sol" data-v="${v.id}">${esc(v.modelo)} · ${esc(v.placa)}</button>`).join("")}</div>
+    <div class="fld"><label for="s-serv">Serviço desejado</label><textarea class="in" id="s-serv" maxlength="120" placeholder="Ex: Troca de óleo e filtro">${esc(m.servico || "")}</textarea></div>
+    ${m.erro ? `<div class="err" role="alert">${esc(m.erro)}</div>` : ""}
+    <div class="acts"><button type="button" class="btn-ghost" data-act="fechar">Cancelar</button><button class="btn" type="submit" style="flex:1.3">Solicitar horário</button></div></form>`);
+}
+
+function telaAgenda() {
+  const u = usuario(), of = oficinaDe(u), dias = proximosDias(7);
+  if (!S.dia) S.dia = dias[0].iso;
+  const doDia = DB.agendamentos.filter((a) => a.oficina_id === of.id && a.data === S.dia).sort((a, b) => a.horario.localeCompare(b.horario));
+  const cnt = (s) => doDia.filter((a) => a.status === s).length;
+  const FILT = ["Todos", "Agendado", "Confirmado", "Em Andamento", "Cancelado"];
+  const lista = doDia.filter((a) => S.filtro === "Todos" || a.status === S.filtro);
+  return head({ titulo: "Agenda", sub: `${doDia.length} agendamento${doDia.length === 1 ? "" : "s"} em ${descreve(S.dia)}` }) +
+    `<div class="scroll">${diasSel()}
+    <div class="sum"><div><span class="lbl">Aguardando</span><b>${cnt("Agendado")}</b></div><div><span class="lbl">Confirmados</span><b>${cnt("Confirmado")}</b></div><div><span class="lbl">Em andamento</span><b>${cnt("Em Andamento")}</b></div></div>
+    <div class="chips">${FILT.map((f) => `<button class="chip" aria-pressed="${S.filtro === f}" data-act="filtro" data-v="${f}">${f}</button>`).join("")}</div>
+    ${lista.length === 0 ? `<div class="empty"><b>Nenhum agendamento</b><span class="muted">Não há agendamentos para este filtro neste dia.</span></div>` : lista.map((a) => `
+    <div class="card"><div class="tl"><span class="hora">${a.horario}</span><div style="min-width:0;flex:1"><div class="modelo" style="font-size:16px">${esc(a.cliente)}</div><div class="muted small">${esc(a.veiculo)} · ${esc(a.placa)}</div></div><span class="badge ${scls(a.status)}">${esc(a.status)}</span></div>
+    <div style="margin-top:8px">${esc(a.servico)}</div>
+    ${a.status === "Agendado" ? `<div class="acts"><button class="btn-danger" data-act="recusar" data-v="${a.id}">Recusar</button><button class="btn" data-act="confirmar" data-v="${a.id}">Confirmar</button></div>` : ""}
+    ${a.status === "Confirmado" ? `<div class="acts"><button class="btn-danger" data-act="recusar" data-v="${a.id}">Cancelar agendamento</button></div>` : ""}</div>`).join("")}</div>`;
+}
+
+function telaIA() {
+  if (!S.msgs) S.msgs = [{ r: "a", t: "Olá! Sou o Mecânico IA da oficina 🔧\n\nMe conte o que está acontecendo com o seu carro (ruídos, luzes no painel, comportamento estranho) e eu vou sugerir possíveis causas e os serviços que podemos realizar." }];
+  const ex = ["Meu carro está fazendo um barulho estranho ao frear", "A luz da injeção acendeu no painel", "O motor está esquentando mais do que o normal", "O carro está puxando para um lado ao andar"];
+  const semUser = !S.msgs.some((m) => m.r === "u");
+  return head({ titulo: "Diagnóstico IA", sub: "Modo demonstração (sem IA online)" }) +
+    `<div class="chat"><div class="msgs" id="msgs">${S.msgs.map(bolha).join("")}${S.pensando ? `<div class="b a"><div class="av">IA</div><div class="bub muted">Analisando...</div></div>` : ""}</div>
+    ${semUser && !S.pensando ? `<div class="ex"><div class="lbl">Exemplos</div>${ex.map((t) => `<button data-act="ex" data-v="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
+    <form class="bar" id="f-ia"><textarea class="in" id="ia-txt" rows="1" maxlength="500" placeholder="Descreva o problema..." ${S.pensando ? "disabled" : ""}></textarea><button class="btn" type="submit" ${S.pensando ? "disabled" : ""}>Enviar</button></form></div>`;
+}
+const bolha = (m) => `<div class="b ${m.r}">${m.r === "a" ? '<div class="av">IA</div>' : ""}<div class="bub">${esc(m.t)}</div></div>`;
+
+/* ---------------- render ---------------- */
+function render(manter) {
+  const el = document.getElementById("app");
+  const keep = document.getElementById("ia-txt")?.value;
+  // Em caso de erro de validação, o que a pessoa digitou volta para os campos
+  const campos = {};
+  if (manter) el.querySelectorAll("input.in[id], textarea.in[id]").forEach((i) => { campos[i.id] = i.value; });
+  if (!S.uid) { el.innerHTML = telaLogin(); restaurar(campos); return; }
+  const u = usuario(), cli = u.perfil === "Cliente";
+  const tabs = cli ? [{ id: "veic", nome: "Veículos", icon: "car" }, { id: "hor", nome: "Horários", icon: "cal" }, { id: "ia", nome: "IA", icon: "chat" }]
+                   : [{ id: "agenda", nome: "Agenda", icon: "cal" }, { id: "ia", nome: "IA", icon: "chat" }];
+  if (!S.tab || !tabs.some((t) => t.id === S.tab)) S.tab = tabs[0].id;
+  const corpo = S.tab === "veic" ? telaVeiculos() : S.tab === "hor" ? telaHorarios() : S.tab === "agenda" ? telaAgenda() : telaIA();
+  const m = S.modal;
+  const modal = !m ? "" : m.tipo === "veic" ? sheetVeiculo() : m.tipo === "del" ? sheetExcluir() : sheetSolicitar();
+  el.innerHTML = corpo + tabbar(tabs) + modal + (S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : "");
+  restaurar(campos);
+  if (S.tab === "ia") { const ms = document.getElementById("msgs"); if (ms) ms.scrollTop = ms.scrollHeight; if (keep) document.getElementById("ia-txt").value = keep; }
+}
+function restaurar(campos) { Object.keys(campos).forEach((id) => { const i = document.getElementById(id); if (i) i.value = campos[id]; }); }
+function aviso(t) { S.toast = t; render(); clearTimeout(aviso.t); aviso.t = setTimeout(() => { S.toast = ""; render(); }, 2200); }
+const val = (id) => document.getElementById(id)?.value ?? "";
+
+/* ---------------- eventos ---------------- */
+const app = document.getElementById("app");
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, v = b.dataset.v;
+  if (act === "fechar-fundo") { if (e.target === b) { S.modal = null; render(); } return; }
+  if (act === "reset") { reiniciar(); return; }
+  if (act === "perfil") { S.perfil = v; S.erro = ""; render(); }
+  else if (act === "modo") { S.modo = S.modo === "Entrar" ? "Cadastrar" : "Entrar"; S.erro = ""; render(); }
+  else if (act === "demo") { const o = SEED.oficinas; const lista = []; o.forEach((x) => { lista.push(["Oficina", x.dono], ["Cliente", x.cliente]); }); const [p, c] = lista[Number(v)]; S.perfil = p; S.erro = ""; render(); document.getElementById("l-email").value = c.email; document.getElementById("l-senha").value = c.senha; }
+  else if (act === "sugestao") { document.getElementById("l-fantasia").value = v; document.getElementById("sugs").innerHTML = ""; }
+  else if (act === "sair") { S = estadoInicial(); render(); }
+  else if (act === "tab") { S.tab = v; S.modal = null; S.slot = null; render(); }
+  else if (act === "dia") { S.dia = v; S.slot = null; render(); }
+  else if (act === "slot") { S.slot = S.slot === v ? null : v; render(); }
+  else if (act === "filtro") { S.filtro = v; render(); }
+  else if (act === "fechar") { S.modal = null; render(); }
+  else if (act === "novo-veic") { S.modal = { tipo: "veic", id: null, erro: "" }; render(); }
+  else if (act === "edit-veic") { S.modal = { tipo: "veic", id: v, erro: "" }; render(); }
+  else if (act === "del-veic") { S.modal = { tipo: "del", id: v, erro: "" }; render(); }
+  else if (act === "conf-del") {
+    const x = DB.veiculos.find((q) => q.id === v);
+    if (vivo(x.usuario_id, x.placa)) { S.modal.erro = "Este veículo tem agendamento ativo. Cancele o agendamento antes de excluí-lo."; render(); return; }
+    DB.veiculos = DB.veiculos.filter((q) => q.id !== v); S.modal = null; aviso("Veículo excluído");
+  }
+  else if (act === "solicitar") { S.modal = { tipo: "sol", veic: null, servico: "", erro: "" }; render(); }
+  else if (act === "veic-sol") { S.modal.servico = val("s-serv"); S.modal.veic = v; render(); }
+  else if (act === "confirmar") { DB.agendamentos.find((a) => a.id === v).status = "Confirmado"; aviso("Agendamento confirmado"); }
+  else if (act === "recusar") { DB.agendamentos.find((a) => a.id === v).status = "Cancelado"; aviso("Agendamento cancelado"); }
+  else if (act === "ex") { enviarIA(v); }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id === "l-fantasia" && S.perfil === "Cliente" && S.modo === "Cadastrar") {
+    const box = document.getElementById("sugs"), s = sugestoes(e.target.value);
+    const exata = s.length === 1 && norm(s[0].nome) === norm(e.target.value);
+    box.innerHTML = s.length && !exata ? `<div class="sugs">${s.map((o) => `<button type="button" data-act="sugestao" data-v="${esc(o.nome)}">${esc(o.nome)}</button>`).join("")}</div>` : "";
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target.id === "ia-txt" && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); document.getElementById("f-ia").requestSubmit(); }
+  if (e.key === "Escape" && S.modal) { S.modal = null; render(); }
+});
+document.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const id = e.target.id;
+  try {
+    if (id === "f-login") {
+      const cli = S.perfil === "Cliente", cad = S.modo === "Cadastrar";
+      const email = val("l-email").trim().toLowerCase(), senha = val("l-senha");
+      if (!cad) {
+        if (!email || !senha) throw "Informe e-mail e senha.";
+        const u = DB.usuarios.find((x) => x.email === email && x.senha === senha);
+        if (!u) throw "E-mail ou senha incorretos.";
+        if (u.perfil !== S.perfil) throw `Essa conta é de ${u.perfil}. Troque o perfil acima.`;
+        S.uid = u.id; S.erro = ""; S.tab = null; S.dia = null; render(); return;
+      }
+      const f = { nome: val("l-nome"), email: val("l-email"), senha, confirmar: val("l-conf") };
+      const fantasia = val("l-fantasia");
+      if (cli) {
+        if (!norm(fantasia)) throw "Informe o nome fantasia da sua oficina.";
+        const of = DB.oficinas.find((o) => norm(o.nome) === norm(fantasia));
+        if (!of) throw "Não encontramos nenhuma oficina com esse nome fantasia. Escolha uma das sugestões.";
+        const em = conta(f);
+        const u = { id: DB.usuarios.length + 1, nome: f.nome.trim(), email: em, senha, perfil: "Cliente", oficina_id: of.id };
+        DB.usuarios.push(u); S.uid = u.id;
+      } else {
+        if (norm(fantasia).length < 3) throw "O nome fantasia deve ter no mínimo 3 letras.";
+        if (DB.oficinas.some((o) => norm(o.nome) === norm(fantasia))) throw "Já existe uma oficina com esse nome fantasia.";
+        const em = conta(f);
+        const of = { id: DB.oficinas.length + 1, nome: fantasia.trim().replace(/\s+/g, " ") }; DB.oficinas.push(of);
+        const u = { id: DB.usuarios.length + 1, nome: f.nome.trim(), email: em, senha, perfil: "Oficina", oficina_id: of.id };
+        DB.usuarios.push(u); S.uid = u.id;
+      }
+      S.erro = ""; S.tab = null; S.dia = null; S.modo = "Entrar"; render();
+    } else if (id === "f-veic") {
+      const m = S.modal, u = usuario();
+      try {
+        const nv = validarVeiculo({ modelo: val("v-modelo"), placa: val("v-placa"), ano: val("v-ano"), km: val("v-km"), cor: val("v-cor") });
+        if (DB.veiculos.some((x) => x.placa === nv.placa && x.id !== m.id)) throw "Já existe um veículo com essa placa.";
+        if (m.id) {
+          const x = DB.veiculos.find((q) => q.id === m.id), antiga = x.placa;
+          Object.assign(x, nv);
+          DB.agendamentos.filter((a) => a.usuario_id === u.id && a.placa === antiga && a.status !== "Cancelado" && a.data >= hojeISO()).forEach((a) => { a.veiculo = nv.modelo; a.placa = nv.placa; });
+        } else DB.veiculos.push({ id: "v" + (++seq), usuario_id: u.id, ...nv });
+        S.modal = null; aviso(m.id ? "Veículo atualizado" : "Veículo cadastrado");
+      } catch (er) { m.erro = String(er); render(true); }
+    } else if (id === "f-sol") {
+      const m = S.modal, u = usuario(), of = oficinaDe(u);
+      m.servico = val("s-serv"); const sv = m.servico.trim();
+      try {
+        if (sv.length < 3) throw "Descreva o serviço desejado.";
+        if (sv.length > 120) throw "Descreva o serviço em até 120 caracteres.";
+        if (!util(doISO(S.dia))) throw "A oficina não funciona aos sábados e domingos.";
+        if (S.dia < hojeISO() || (S.dia === hojeISO() && S.slot <= agoraHM())) throw "Esse horário já passou. Escolha outro.";
+        const v = DB.veiculos.find((x) => x.id === m.veic && x.usuario_id === u.id);
+        if (!v) throw "Selecione um dos seus veículos.";
+        if (!livre(of.id, S.dia, S.slot)) throw "Esse horário acabou de ser ocupado. Escolha outro.";
+        DB.agendamentos.push({ id: "a" + (++seq), data: S.dia, horario: S.slot, cliente: u.nome, veiculo: v.modelo, placa: v.placa, servico: sv, status: "Agendado", usuario_id: u.id, oficina_id: of.id });
+        S.modal = null; S.slot = null; aviso("Horário solicitado. Aguarde a confirmação da oficina.");
+      } catch (er) { m.erro = String(er); render(true); }
+    } else if (id === "f-ia") { enviarIA(val("ia-txt")); }
+  } catch (er) { S.erro = String(er); render(true); }
+});
+function enviarIA(texto) {
+  const t = String(texto).trim(); if (!t || S.pensando) return;
+  const antes = S.msgs.filter((m) => m.r === "u").map((m) => m.t);
+  S.msgs.push({ r: "u", t }); S.pensando = true; render();
+  setTimeout(() => { S.msgs.push({ r: "a", t: responderLocal(t, antes) }); S.pensando = false; render(); }, 700);
+}
+reiniciar();
+</script>
