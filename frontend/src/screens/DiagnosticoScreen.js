@@ -1,5 +1,5 @@
 // ============================================================
-// DiagnosticoScreen - Tela 4 (Diagnóstico IA com Claude Haiku 4.5)
+// DiagnosticoScreen - Tela 4 (Diagnóstico IA: Claude Haiku 4.5 via backend, ou modo demonstração)
 // Chat onde o cliente descreve o problema e a IA sugere causas
 // e serviços da oficina.
 // ============================================================
@@ -19,8 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../components/Header";
 import { colors, spacing, radius } from "../theme";
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { perguntarMecanicoIA, IA_ONLINE_CONFIGURADA } from "../services/diagnostico";
 
 const SUGESTOES = [
   "Meu carro está fazendo um barulho estranho ao frear",
@@ -77,30 +76,14 @@ export default function DiagnosticoScreen() {
     setCarregando(true);
 
     try {
-      const resp = await fetch(`${BACKEND_URL}/api/diagnostico`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionId,
-          mensagem,
-        }),
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`Erro ${resp.status}: ${errText.slice(0, 120)}`);
-      }
-
-      const data = await resp.json();
-      const botMsg = {
-        id: data.id || `a-${Date.now()}`,
-        role: "assistant",
-        content: data.content || "Sem resposta.",
-      };
+      const historicoUsuario = mensagens.filter((m) => m.role === "user").map((m) => m.content);
+      const r = await perguntarMecanicoIA({ sessionId, mensagem, historicoUsuario });
+      const botMsg = { id: r.id || `a-${Date.now()}`, role: "assistant", content: r.content };
       setMensagens((atual) => [...atual, botMsg]);
+      if (r.aviso) setErro(r.aviso);
     } catch (e) {
       console.log("Erro diagnostico:", e);
-      setErro("Não consegui falar com a IA agora. Tente novamente em instantes.");
+      setErro("Não consegui responder agora. Tente novamente em instantes.");
     } finally {
       setCarregando(false);
     }
@@ -136,7 +119,7 @@ export default function DiagnosticoScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Header
         titulo="Diagnóstico IA"
-        subtitulo="Powered by Claude Haiku 4.5"
+        subtitulo={IA_ONLINE_CONFIGURADA ? "Powered by Claude Haiku 4.5" : "Modo demonstração (sem IA online)"}
         testID="diagnostico-header"
       />
 

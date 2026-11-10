@@ -31,7 +31,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 | **Meus Veículos** | Cliente | Nicolas Gabriel | Lista **somente os veículos do cliente logado**; cadastro via modal com validação (modelo, placa e ano) |
 | **Horários** | Cliente | Dupla | Escolhe o dia, vê quais horários da **sua oficina** estão disponíveis ou ocupados (sem dados de outros clientes) e toca em **Solicitar horário** (veículo + serviço). Acompanha o status em *Minhas solicitações* |
 | **Agenda** | Oficina | Luiz Eduardo | Agenda por dia **só dos clientes da própria oficina**, filtros por status, **Confirmar / Recusar / Cancelar** (só o dono daquela oficina) |
-| **Diagnóstico IA** | Todos | Dupla | Chat com Claude Haiku 4.5 que sugere causas prováveis, serviços e urgência |
+| **Diagnóstico IA** | Todos | Dupla | Chat do *Mecânico IA*: sugere causas prováveis, serviços da oficina e urgência. **Modo demonstração** (respostas locais, sem internet nem chave) por padrão; com o backend configurado usa o Claude Haiku 4.5 |
 
 ### Validações básicas implementadas
 - **Login:** exibe erro se e-mail ou senha estiverem vazios, se a senha estiver errada ou se o perfil escolhido não for o da conta.
@@ -40,7 +40,7 @@ O tema visual é *dark-first* com destaque laranja industrial.
 - **Cadastro de cliente:** nome obrigatório, **oficina existente, escolhida nas sugestões ao digitar o nome fantasia** (aceita variações de maiúsculas, acentos e espaços; nome inexistente é recusado e a conta não é criada), e-mail válido e único, senha com no mínimo 6 caracteres e confirmação igual.
 - **Cadastro de oficina:** nome fantasia único (sem diferenciar maiúsculas, acentos e espaços extras; mínimo 3 letras), nome do responsável, e-mail único e senha com no mínimo 6 caracteres.
 - **Novo veículo:** exige modelo, placa e ano; placa é convertida para maiúsculas; ano e KM aceitam apenas teclado numérico.
-- **Diagnóstico IA:** não envia mensagem vazia; limite de 500 caracteres; tratamento de erro de conexão.
+- **Diagnóstico IA:** não envia mensagem vazia; limite de 500 caracteres; se o backend estiver configurado e cair, o chat responde no modo demonstração e avisa.
 
 ## 💾 Persistência (Checkpoint 3)
 
@@ -129,10 +129,12 @@ frontend/
     │   ├── DiaSelector.js
     │   └── CardAgendamento.js        # Luiz
     ├── context/AuthContext.js       # usuário logado (login, cadastro, sair)
+    ├── services/diagnostico.js      # chat IA: backend online ou modo demonstração
     ├── database/
     │   ├── db.js                    # SQLite: tabelas, consultas e permissões
     │   └── seguranca.js             # hash de senha (SHA-256 + salt)
     ├── utils/datas.js               # datas e seletor de dias
+    ├── utils/diagnosticoLocal.js    # respostas do Mecânico IA (modo demonstração)
     ├── mocks/data.js
     └── theme.ts
 docs/                            # capturas de tela e roteiro da avaliação
@@ -157,7 +159,7 @@ Escaneie o QR Code com o Expo Go (Android) ou pressione `a` para o emulador Andr
 - *"a execução de scripts foi desabilitada"* no PowerShell: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 - *"Unable to resolve module ..."* depois de trocar de versão do projeto: apague a pasta `node_modules` e rode `npm install` e `npx expo start -c` de novo.
 
-**Aba Diagnóstico IA (opcional):** precisa do backend rodando e da variável `EXPO_PUBLIC_BACKEND_URL` apontando para ele. Sem isso o app continua funcionando e a aba mostra "Não consegui falar com a IA agora".
+**Aba Diagnóstico IA:** funciona sem configurar nada, em modo demonstração (veja *Chat com IA*). Para usar a IA online (opcional), suba o backend e defina `EXPO_PUBLIC_BACKEND_URL`:
 
 ```bash
 cd backend
@@ -167,11 +169,22 @@ uvicorn server:app --reload --port 8001
 
 O backend requer as variáveis `MONGO_URL`, `DB_NAME` e `EMERGENT_LLM_KEY` no arquivo `backend/.env`.
 
+## 🤖 Chat com IA (Mecânico IA)
+
+O chat funciona de dois jeitos, escolhidos automaticamente (`frontend/src/services/diagnostico.js`):
+
+| Modo | Quando | Como responde |
+|---|---|---|
+| **Demonstração** (padrão) | `EXPO_PUBLIC_BACKEND_URL` não definida, ou backend fora do ar | Base de conhecimento local (`utils/diagnosticoLocal.js`): reconhece 14 assuntos por palavras-chave (freios, injeção, superaquecimento, alinhamento, suspensão, bateria, óleo, fumaça, ar-condicionado, embreagem, consumo, pneus, cheiro de queimado, revisão) e devolve causas, serviço da oficina, urgência (🟢🟡🔴) e uma pergunta para refinar. **Não é IA generativa**: a tela mostra "Modo demonstração" no topo e cada resposta traz o aviso |
+| **IA online** | `EXPO_PUBLIC_BACKEND_URL` definida | O app chama `POST /api/diagnostico` do backend FastAPI, que consulta o Claude Haiku 4.5 e guarda a conversa no MongoDB |
+
+Para ligar a IA online é preciso uma chave e o backend rodando (veja *Como executar*). Crie `frontend/.env` com o endereço do computador na rede, por exemplo `EXPO_PUBLIC_BACKEND_URL=http://192.168.0.10:8001`, e reinicie com `npx expo start -c`. A chave de IA fica **só no backend**, nunca dentro do app.
+
 ## 🧪 Tabela de testes
 
 ### Testes automatizados (regras de negócio e banco)
 
-Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `db.js` do app sobre um SQLite em memória e um relógio fixo (quarta, 28/10/2026), então o resultado é repetível. Resultado da última execução: **5/5 arquivos, 38 verificações, todas passaram**.
+Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `db.js` do app sobre um SQLite em memória e um relógio fixo (quarta, 28/10/2026), então o resultado é repetível. Resultado da última execução: **6/6 arquivos, 43 verificações, todas passaram**.
 
 | Arquivo | O que verifica | Resultado |
 |---|---|---|
@@ -180,6 +193,7 @@ Rodam sem celular: `cd frontend && npm run test:db` (Node 22.5+). Usam o mesmo `
 | `03_nome_fantasia.test.js` | vínculo pelo nome fantasia (maiúsculas, acentos, espaços); nome inexistente/parcial/curinga/injeção recusado sem criar conta; nome único; cliente só vê a agenda da própria oficina | Passou (5) |
 | `04_sugestoes.test.js` | autocompletar por prefixo: mínimo 2 letras, só início do nome, curingas `%` e `_` não vazam, limite de 5, escolha na lista cadastra na oficina certa | Passou (2) |
 | `05_crud_veiculos.test.js` | **C**: cadastro valida ano e km; **U**: edição e propagação aos agendamentos futuros; **D**: exclusão bloqueada com agendamento ativo e liberada depois; outro cliente não edita nem exclui; placa repetida recusada | Passou (6) |
+| `06_diagnostico_ia.test.js` | chat no modo demonstração: as 4 frases de exemplo caem no tópico certo; ignora acento/maiúsculas; todos os tópicos trazem causas, serviço, urgência e pergunta em até 180 palavras; itens de segurança saem como 🔴; mensagem sem assunto pede detalhes e usa o histórico | Passou (5) |
 
 ### Testes manuais no celular (fluxo principal)
 
@@ -202,6 +216,8 @@ Executar no Expo Go antes de entregar e marcar o resultado:
 | 13 | Voltar como cliente | Status do pedido aparece como *Confirmado* | ☐ |
 | 14 | Entrar como `cliente@premium.com` | Vê só a agenda e os veículos da Mecânica Premium | ☐ |
 | 15 | Fechar o app e reabrir | Continua logado e os dados permanecem | ☐ |
+| 16 | Aba IA: tocar em um exemplo ("barulho ao frear") | Resposta com causas, serviço, urgência 🔴 e pergunta; topo mostra "Modo demonstração" | ☐ |
+| 17 | Aba IA: digitar "oi tudo bem?" | Pede mais detalhes do problema, sem inventar diagnóstico | ☐ |
 
 ## 📋 Lista de pendências
 
@@ -213,7 +229,7 @@ Executar no Expo Go antes de entregar e marcar o resultado:
 - **Sincronização com servidor**: o SQLite é local ao aparelho; clientes e oficina em celulares diferentes não compartilham a agenda.
 
 **Limitações conhecidas**
-- A aba **Diagnóstico IA** depende de backend (FastAPI + MongoDB + chave de IA) que não está hospedado; sem ele mostra uma mensagem de erro amigável.
+- O **Diagnóstico IA** roda em modo demonstração (respostas por palavras-chave, não generativas). A IA online (Claude) está implementada no backend, mas **não foi testada com chave real** e o backend não está hospedado.
 - O hash de senha (SHA-256 com salt, em JavaScript) serve para o trabalho acadêmico; em produção a verificação ficaria no servidor com bcrypt/argon2.
 - Os testes automáticos cobrem regras e banco, **não a interface**; a interface é conferida pela tabela manual acima.
 - O teste de migração de bancos de versões antigas foi feito durante o desenvolvimento, mas não está no repositório.

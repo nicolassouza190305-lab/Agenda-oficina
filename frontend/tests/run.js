@@ -21,7 +21,7 @@ const raiz = path.join(__dirname, "..");
 const saida = fs.mkdtempSync(path.join(os.tmpdir(), "agenda-oficina-tests-"));
 
 // 1) converte o código do app
-for (const arq of ["database/db.js", "database/seguranca.js", "mocks/data.js", "utils/datas.js"]) {
+for (const arq of ["database/db.js", "database/seguranca.js", "mocks/data.js", "utils/datas.js", "utils/diagnosticoLocal.js"]) {
   const fonte = fs.readFileSync(path.join(raiz, "src", arq), "utf8");
   const js = ts.transpileModule(fonte, { compilerOptions: { module: "commonjs", target: "es2020", allowJs: true } }).outputText;
   const destino = path.join(saida, "src", arq);
